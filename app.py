@@ -3,6 +3,7 @@ import os
 import json
 import qrcode
 import base64
+from waitress import serve
 from io import BytesIO
 import random
 import hashlib
@@ -30,7 +31,7 @@ def initialize():
         with open('config.json','r') as configdata :
             config = json.loads(configdata.read())
     except:
-        config = {'TOKEN_EXPIRATION_TIME':1*60*60*1000,'MESSAGE_RETRACT_TIME':1*60*60*1000}
+        config = {'TOKEN_EXPIRATION_TIME':1*60*60*1000,'MESSAGE_RETRACT_TIME':1*60*60*1000,'SERVER_PORT':5000}
         with open('config.json','w') as configdata :
             configdata.write(json.dumps(config))
 
@@ -178,7 +179,6 @@ app = Flask(__name__)
 @app.route('/api/',methods=['POST','GET'])
 # 测试连通性
 def api():
-    print(users.values())
     return apireturn(200,msgSC,'chatapihost')
 
 @app.route('/api/user/register',methods=['POST','GET'])
@@ -405,7 +405,6 @@ def api_user_otp_verify():
     
     # 检查代码
     otp = pyotp.totp.TOTP(userinfo('Token',token,False)['prepared otpkey'])
-    print(otp.now())
     if not otp.verify(int(otpcode)):
         return apireturn(401,msgEF+'otpcode',None)
     
@@ -853,4 +852,5 @@ def api_chat_level_set(chatid):
 
 if __name__ == '__main__':
     initialize()
-    app.run(debug=True)
+    print('按下Ctrl+c关闭服务')
+    serve(app, host='127.0.0.1', port=config['SERVER_PORT'])

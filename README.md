@@ -9,6 +9,10 @@
 - [x] 安全：可变 Token、双因素认证（OTP）
 - [x] 机制：房间多等级划分、完整消息机制等满足使用需求。
 
-## 使用
+## 教程
 
 详情请查看[wiki](https://github.com/wzyaeu/Quile-chat/wiki)
+
+## 使用
+
+前往[releases](https://github.com/wzyaeu/Quile-chat/releases)页面下载最新版或者`pyinstaller -F app.py`手动编译。
