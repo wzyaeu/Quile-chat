@@ -285,7 +285,7 @@ def api_user_joinchat():
         return apireturn(400,msgMF+'token',None)
     
     # 检查token
-    if not Verify_token('re',token) :
+    if not Verify_token(token) :
         return apireturn(401,msgEF+'token',None)
 
     # 获取已加入聊天的信息
@@ -312,7 +312,7 @@ def api_user_refreshtoken():
         return apireturn(400,msgMF+'token',None)
     
     # 检查token
-    if not Verify_token('re',token) :
+    if not Verify_token(token) :
         return apireturn(401,msgEF+'token',None)
     
     # 设置token
