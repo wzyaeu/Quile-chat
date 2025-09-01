@@ -49,11 +49,11 @@ def initialize():
     
     userlist = []
     for user in list(users.values()):
-        userlist.append(user['id'])
+        userlist.append(user['user'])
         
     chatidlist = []
     for chat in list(chats.values()):
-        chatidlist.append(chat['id'])
+        chatidlist.append(chat['user'])
         
     emailsendlist = {}
 
@@ -76,9 +76,9 @@ def apireturn(code,msg,data):
 
 def Token() -> str:
     """生成token"""
-    token = ''.join(random.sample(string.ascii_letters + string.ascii_uppercase + string.digits))
+    token = ''.join(random.sample(string.ascii_letters + string.ascii_uppercase + string.digits,k=25))
     while token in list(chats.values()) :
-        token = ''.join(random.sample(string.ascii_letters + string.ascii_uppercase + string.digits))
+        token = ''.join(random.sample(string.ascii_letters + string.ascii_uppercase + string.digits,k=25))
     
     return token
 
@@ -105,6 +105,11 @@ def userinfo(type,keyword,flag) -> dict :
             if not flag:
                 del user_copy['Token']
                 del user_copy['password']
+                del user_copy['otpkey']
+                try:
+                    del user_copy['prepared otpkey']
+                except:
+                    pass
             del user_copy['time']
             return user_copy
     return {}
@@ -112,7 +117,7 @@ def userinfo(type,keyword,flag) -> dict :
 def chatinfo(chatid) -> dict :
     """获取聊天信息"""
     for chat in list(chats.values()):
-        if chat['id'] == str(chatid):
+        if chat['user'] == str(chatid):
             chat_copy = chat.copy()
             del chat_copy['chat']
             del chat_copy['user']
@@ -121,9 +126,33 @@ def chatinfo(chatid) -> dict :
             return chat_copy
     return {}
 
-def leveltonumber(level) -> str|None:
+def leveltonumber(level) -> int|bool:
     """聊天内用户等级转数字"""
-    return '0' if level == 'guest' else ('1' if level == 'admin' else ('2' if level == 'owner' else None))
+    if level == 'guest':
+        return 0
+    elif level == 'member':
+        return 1
+    elif level == 'admin':
+        return 2 
+    elif level == 'owner':
+        return 3 
+    elif type(level) == int and 0 <= level <= 3:
+        return level 
+    else:
+        return False
+    
+def userlevel(chatid,user,level):
+    try:
+        for chatuser in chats[chatid]['user']:
+            if chatuser['user'] == user:
+                if leveltonumber(chatuser['level']) >= str(level) :
+                    return True
+                else:
+                    return False
+    except:
+        pass
+
+    return False
 
 def adduser(name,token,user,password):
     """添加用户"""
@@ -154,6 +183,7 @@ app = Flask(__name__)
 @app.route('/api/',methods=['POST','GET'])
 # 测试连通性
 def api():
+    print(users.values())
     return apireturn(200,msgSC,'chatapihost')
 
 @app.route('/api/user/register',methods=['POST','GET'])
@@ -177,8 +207,8 @@ def api_user_register():
         apireturn(403,msgEF+'user',None)
 
     # 检查用户编号是否重复
-    users = [user['id'] for user in users ]
-    if user in users:
+    _userlist = [user['user'] for user in list(users.values()) ]
+    if user in _userlist:
         apireturn(403,msgUP+'The user is taken',None)
 
     # 本地存储
@@ -199,7 +229,7 @@ def api_user_login():
     password = requestbody.get('password')
     if not password:
         return apireturn(400,msgMF+'password',None)
-    otp = requestbody.get('otpkey')
+    otpcode = requestbody.get('otpcode')
     
     # 检查user
     _userinfo = userinfo('user',user,True)
@@ -212,8 +242,7 @@ def api_user_login():
     
     # 检查otp
     if 'otpkey' in users[user] and not(users[user]['otpkey']):
-        otp_code = pyotp.TOTP(users[user]['otpkey']).now()
-        if otp != otp_code:
+        if not pyotp.TOTP(users[user]['otpkey']).verify(otpcode):
             return apireturn(401,msgEF+'otpkey',None)
     
     # 检查是否有token
@@ -256,7 +285,7 @@ def api_user_joinchat():
         requestbody: dict = {key: str(value) for key, value in json.loads(request.data).items()}
     except Exception as e:
         return apireturn(400,msgUP+'error body',None)
-    token = sha256text(requestbody.get('token'))
+    token = requestbody.get('token')
     if not token:
         return apireturn(400,msgMF+'token',None)
     
@@ -269,8 +298,8 @@ def api_user_joinchat():
     joinchat = []
     for chat in list(chats.values()):
         for chatuser in list(chat['user'].values()):
-            if chatuser['id'] == user:
-                joinchat.append(chatinfo(chat['id']))
+            if chatuser['user'] == user:
+                joinchat.append(chatinfo(chat['user']))
                 break
 
 
@@ -283,7 +312,7 @@ def api_user_refreshtoken():
         requestbody: dict = {key: str(value) for key, value in json.loads(request.data).items()}
     except Exception as e:
         return apireturn(400,msgUP+'error body',None)
-    token = sha256text(requestbody.get('token'))
+    token = requestbody.get('token')
     if not token:
         return apireturn(400,msgMF+'token',None)
     
@@ -295,7 +324,7 @@ def api_user_refreshtoken():
     token = Token()
 
     # 本地存储
-    user = userinfo('Token',token,False)['id']
+    user = userinfo('Token',token,False)['user']
     users[user]['Token'] = sha256text(token)
 
     save_user_data()
@@ -309,10 +338,10 @@ def api_user_otp_generated():
         requestbody: dict = {key: str(value) for key, value in json.loads(request.data).items()}
     except Exception as e:
         return apireturn(400,msgUP+'error body',None)
-    token = sha256text(requestbody.get('token'))
+    token = requestbody.get('token')
     if not token:
         return apireturn(400,msgMF+'token',None)
-    img = sha256text(requestbody.get('img'))
+    img = requestbody.get('img')
     
     # 检查token
     if not Verify_token(token) :
@@ -329,18 +358,18 @@ def api_user_otp_generated():
         otpkey = pyotp.random_base32()
 
         # 保存预备密钥
-        users[userinfo('Token',token,False)['id']]['prepared otpkey'] = otpkey
+        users[userinfo('Token',token,False)['user']]['prepared otpkey'] = otpkey
         save_user_data()
     
     otp = pyotp.totp.TOTP(otpkey, interval=30, digits=6)
-    url = otp.provisioning_url(name=userinfo('Token',token,False)['user'], issuer_name='Secure App')
+    uri = otp.provisioning_uri(name=userinfo('Token',token,False)['user'], issuer_name='Secure App')
 
     # 生成二维码dataurl
     if img == 'true' :
         # 生成二维码图片
         qr = qrcode.QRCode(version=1,error_correction=qrcode.constants.ERROR_CORRECT_L, box_size=10, border=4,
         )
-        qr.add_data(url)
+        qr.add_data(uri)
         qr.make(fit=True)
         otpimg = qr.make_image(fill_color="black", back_color="white")
 
@@ -364,10 +393,10 @@ def api_user_otp_verify():
         requestbody: dict = {key: str(value) for key, value in json.loads(request.data).items()}
     except Exception as e:
         return apireturn(400,msgUP+'error body',None)
-    token = sha256text(requestbody.get('token'))
+    token = requestbody.get('token')
     if not token:
         return apireturn(400,msgMF+'token',None)
-    otpcode = sha256text(requestbody.get('otpcode'))
+    otpcode = requestbody.get('otpcode')
     if not token:
         return apireturn(400,msgMF+'otpcode',None)
     
@@ -380,13 +409,14 @@ def api_user_otp_verify():
         return apireturn(401,msgUP+'There is currently no otpkey',None)
     
     # 检查代码
-    otp = pyotp.totp.TOTP(userinfo('Token',token,False)['otpkey'])
-    if not (otpcode == otp.now()):
+    otp = pyotp.totp.TOTP(userinfo('Token',token,False)['prepared otpkey'])
+    print(otp.now())
+    if not otp.verify(int(otpcode)):
         return apireturn(401,msgEF+'otpcode',None)
     
     # 设置密钥
-    users[userinfo('Token',token,False)['id']]['otpkey'] = users[userinfo('Token',token,False)['id']]['prepared otpkey']
-    del users[userinfo('Token',token,False)['id']]['prepared otpkey']
+    users[userinfo('Token',token,False)['user']]['otpkey'] = users[userinfo('Token',token,False)['user']]['prepared otpkey']
+    del users[userinfo('Token',token,False)['user']]['prepared otpkey']
     save_user_data()
 
     return apireturn(200,msgSC,None)
@@ -401,7 +431,7 @@ def api_user_otp_clear():
     otpcode = requestbody.get('otpcode')
     if not otpcode:
         return apireturn(400,msgMF+'otpcode',None)
-    token = sha256text(requestbody.get('token'))
+    token = requestbody.get('token')
     if not token:
         return apireturn(400,msgMF+'token',None)
     
@@ -418,7 +448,7 @@ def api_user_otp_clear():
         return apireturn(304,msgEF+'otpcode',None)
     
     # 删除密钥
-    del users[userinfo('Token',token,False)['id']]['otpkey']
+    del users[userinfo('Token',token,False)['user']]['otpkey']
     save_user_data()
 
     return apireturn(200,msgSC,None)
@@ -435,7 +465,7 @@ def api_chat_add():
     if not name:
         return apireturn(400,msgMF+'name',None)
     password = requestbody.get('password')
-    token = sha256text(requestbody.get('token'))
+    token = requestbody.get('token')
     if not token:
         return apireturn(400,msgMF+'token',None)
     
@@ -466,7 +496,7 @@ def api_chat_join():
     chatid = sha256text(requestbody.get('chatid'))
     if not chatid:
         return apireturn(400,msgMF+'chatid',None)
-    token = sha256text(requestbody.get('token'))
+    token = requestbody.get('token')
     if not token:
         return apireturn(400,msgMF+'token',None)
     
@@ -489,7 +519,7 @@ def api_chat_join():
         'type':'-1','time':time.time(),
         'content':{
             'tiptype':'join',
-            'user':userinfo('Token',token,False)['id']
+            'user':userinfo('Token',token,False)['user']
         } 
     })
     
@@ -509,7 +539,7 @@ def api_chat_user_list(chatid):
         requestbody: dict = {key: str(value) for key, value in json.loads(request.data).items()}
     except Exception as e:
         return apireturn(400,msgUP+'error body',None)
-    token = sha256text(requestbody.get('token'))
+    token = requestbody.get('token')
     if not token:
         return apireturn(400,msgMF+'token',None)
     
@@ -520,7 +550,7 @@ def api_chat_user_list(chatid):
     # 检查是否在聊天内
     chatusertoken = []
     for chatuser in chats[chatid]['user']:
-        chatusertoken.append(userinfo('user',chatuser['id'],True)['Token'])
+        chatusertoken.append(userinfo('user',chatuser['user'],True)['Token'])
     if not(token in chatusertoken):
         return apireturn(403,msgIP,None)
     
@@ -538,7 +568,7 @@ def api_chat_chat_send(chatid):
         requestbody: dict = {key: str(value) for key, value in json.loads(request.data).items()}
     except Exception as e:
         return apireturn(400,msgUP+'error body',None)
-    token = sha256text(requestbody.get('token'))
+    token = requestbody.get('token')
     if not token:
         return apireturn(400,msgMF+'token',None)
     type = requestbody.get('type','0')
@@ -547,10 +577,14 @@ def api_chat_chat_send(chatid):
     if not Verify_token(token) :
         return apireturn(401,msgEF + 'token',None)
     
+    # 检查是否有权限
+    if userlevel(chatid, userinfo('token',token,False)['user'], 1):
+        return apireturn(403,msgIP,None)
+    
     # 检查是否在聊天内
     chatusertoken = []
     for chatuser in chats[chatid]['user']:
-        chatusertoken.append(userinfo('user',chatuser['id'],True)['Token'])
+        chatusertoken.append(userinfo('user',chatuser['user'],True)['Token'])
     if not(token in chatusertoken):
         return apireturn(403,msgIP,None)
     
@@ -560,7 +594,7 @@ def api_chat_chat_send(chatid):
         if not message:
             return apireturn(400,msgMF+'message',None)
         
-        chats[chatid]['chat'].append({'type':'0','sender':userinfo('Token',token,True)['id'],'time':time.time(),'content':{'text':message},'id':msgid() })
+        chats[chatid]['chat'].append({'type':'0','sender':userinfo('Token',token,True)['user'],'time':time.time(),'content':{'text':message},'id':msgid() })
     # 引用消息
     elif type == '1':
         # 获取字段
@@ -578,7 +612,7 @@ def api_chat_chat_send(chatid):
         # 检查引用是否正确
         flag = False
         for msg in chats[chatid]['chat']:
-            if msg['id'] == citation:
+            if msg['user'] == citation:
                 if msg['type'] == '-1':
                     return apireturn(400,msgUP+'Unquotable message',None)
                 flag = True
@@ -586,7 +620,7 @@ def api_chat_chat_send(chatid):
         if not flag:
             return apireturn(400,msgEF+'citation',None)
         
-        chats[chatid]['chat'].append({'type':'1','sender':userinfo('Token',token,True)['id'],'time':time.time(),'content':{'text':message,'citation':citation},'id':msgid() })
+        chats[chatid]['chat'].append({'type':'1','sender':userinfo('Token',token,True)['user'],'time':time.time(),'content':{'text':message,'citation':citation},'id':msgid() })
     # 文件消息
     elif type == '2':
         # 获取上传的文件对象
@@ -618,7 +652,7 @@ def api_chat_chat_send(chatid):
         filedata = save_uploaded_file(uploaded_file, chatid)
 
         # 添加信息
-        chats[chatid]['chat'].append({'type':'2','sender':userinfo('Token',token,False)['id'],'time':time.time(),'content':filedata,'id':sha256text(str(int(time.time()))+str(random.randint(0,9999))) })
+        chats[chatid]['chat'].append({'type':'2','sender':userinfo('Token',token,False)['user'],'time':time.time(),'content':filedata,'id':sha256text(str(int(time.time()))+str(random.randint(0,9999))) })
     else :
         return apireturn(400,msgEF+'type',None)
 
@@ -638,7 +672,7 @@ def api_chat_chat_get(chatid):
         requestbody: dict = {key: str(value) for key, value in json.loads(request.data).items()}
     except Exception as e:
         return apireturn(400,msgUP+'error body',None)
-    token = sha256text(requestbody.get('token'))
+    token = requestbody.get('token')
     if token:
         return apireturn(400,msgMF + 'token',None)
     starttime = requestbody.get('starttime',None)
@@ -651,13 +685,13 @@ def api_chat_chat_get(chatid):
     # 检查是否在聊天内
     chatusertoken = []
     for chatuser in chats[chatid]['user']:
-        chatusertoken.append(userinfo('user',chatuser['id'],True)['Token'])
+        chatusertoken.append(userinfo('user',chatuser['user'],True)['Token'])
     if not(token in chatusertoken):
         return apireturn(403,msgIP,None)
     
     # 用户最开始进入聊天时间
     for user in chats[chatid]['user']:
-        if user['id'] == userinfo('token',token,False)['id']:
+        if user['user'] == userinfo('token',token,False)['user']:
             jointime = user['jointime']
     
     # 遍历聊天信息
@@ -680,7 +714,7 @@ def api_chat_file_get(chatid):
         requestbody: dict = {key: str(value) for key, value in json.loads(request.data).items()}
     except Exception as e:
         return apireturn(400,msgUP+'error body',None)
-    token = sha256text(requestbody.get('token'))
+    token = requestbody.get('token')
     fileid = requestbody.get('fileid',0)
     if not fileid:
         return apireturn(400,msgMF + 'fileid',None)
@@ -692,7 +726,7 @@ def api_chat_file_get(chatid):
     # 检查是否在聊天内
     chatusertoken = []
     for chatuser in chats[chatid]['user']:
-        chatusertoken.append(userinfo('user',chatuser['id'],True)['Token'])
+        chatusertoken.append(userinfo('user',chatuser['user'],True)['Token'])
     if not(token in chatusertoken):
         return apireturn(403,msgIP,None)
     
@@ -717,7 +751,7 @@ def api_chat_chat_retract(chatid):
         requestbody: dict = {key: str(value) for key, value in json.loads(request.data).items()}
     except Exception as e:
         return apireturn(400,msgUP+'error body',None)
-    token = sha256text(requestbody.get('token'))
+    token = requestbody.get('token')
     if not token:
         return apireturn(400,msgMF + 'token',None)
     msgid = requestbody.get('msgid',0)
@@ -728,10 +762,14 @@ def api_chat_chat_retract(chatid):
     if not Verify_token(token) :
         return apireturn(401,msgEF + 'token',None)
     
+    # 检查是否有权限
+    if userlevel(chatid, userinfo('token',token,False)['user'], 1):
+        return apireturn(403,msgIP,None)
+    
     # 检查是否在聊天内
     chatusertoken = []
     for chatuser in chats[chatid]['user']:
-        chatusertoken.append(userinfo('user',chatuser['id'],True)['Token'])
+        chatusertoken.append(userinfo('user',chatuser['user'],True)['Token'])
     if not(token in chatusertoken):
         return apireturn(403,msgIP,None)
     
@@ -739,9 +777,9 @@ def api_chat_chat_retract(chatid):
     flag = False
     for msg in chats[chatid]['chat']:
         if not(msg['type'] == '-1') :
-            if msg['id'] == msgid:
+            if msg['user'] == msgid:
                 # 验证token
-                if not(userinfo('user',msg['content']['sender'],True)['Token'] == token):
+                if not(userinfo('user',msg['content']['sender'],True)['Token'] == token) and not userlevel(chatid, userinfo('token',token,False)['user'], 2):
                     return apireturn(403,msgIP,None)
                 flag = True
                 index = chats[chatid]['chat'].index(msg)
@@ -755,7 +793,7 @@ def api_chat_chat_retract(chatid):
     
     # 替换为提示信息
     chats[chatid]['chat'][index]['type'] = '-1'
-    chats[chatid]['chat'][index]['content'] = {'tiptype':'retract','user':userinfo('Token',token,False)['id']}
+    chats[chatid]['chat'][index]['content'] = {'tiptype':'retract','user':userinfo('Token',token,False)['user']}
     del chats[chatid]['chat'][index]['sender']
     save_chat_data()
     
@@ -773,7 +811,7 @@ def api_chat_level_set(chatid):
         requestbody: dict = {key: str(value) for key, value in json.loads(request.data).items()}
     except Exception as e:
         return apireturn(400,msgUP+'error body',None)
-    token = sha256text(requestbody.get('token'))
+    token = requestbody.get('token')
     if not token:
         return apireturn(400,msgMF + 'token',None)
     user = requestbody.get('user',0)
@@ -794,37 +832,36 @@ def api_chat_level_set(chatid):
     # 检查是否在聊天内
     chatusertoken = []
     for chatuser in chats[chatid]['user']:
-        chatusertoken.append(userinfo('user',chatuser['id'],True)['Token'])
+        chatusertoken.append(userinfo('user',chatuser['user'],True)['Token'])
     if not(token in chatusertoken):
         return apireturn(403,msgIP,None)
     
     # 检查是否有权限
-    index = chatusertoken.index[token]
-    if not(leveltonumber(chats[chatid]['user'][index]['level']) > 0):
+    if userlevel(chatid, user, 2):
         return apireturn(403,msgIP,None)
     
     # 检查对方是否在聊天内
     flag = False
     for chatuser in chats[chatid]['user']:
-        if chatuser['id'] == user:
+        if chatuser['user'] == user:
             # 检查是不是自己
-            if userinfo('user',chatuser['id'],True)['Token'] == token:
+            if userinfo('user',chatuser['user'],True)['Token'] == token:
                 return apireturn(400,msgUP + 'Cannot change your own level.',None)
             flag = True
 
             # 检查是否要修改成房主
-            if level == '2':
+            if level == '3':
                 return apireturn(400,msgUP + 'cannot be modified to owner.',None)
 
             # 检查等级高低
-            if level < chatuser['level']:
+            if userlevel(chatid, user, chatuser['level']):
                 return apireturn(400,msgUP + 'cannot modify users with high permissions',None)
 
             # 修改对方等级
             chatuser['level'] = level
 
             # 添加消息
-            content =  {'tiptype':'levelset','user':userinfo('Token',token,False)['id'],'reactive':chatuser['id'],'level':level}
+            content =  {'tiptype':'levelset','user':userinfo('Token',token,False)['user'],'reactive':chatuser['user'],'level':level}
             chats[chatid]['chat'].append({'type':'-1','time':time.time(),'content':content,'id':msgid() })
     if not flag :
         return apireturn(401,msgEF + 'user',None)
