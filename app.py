@@ -506,7 +506,7 @@ def api_chat_join():
     
     # 检查聊天密码
     if (not chats[chatid]['password']) and (chats[chatid]['password'] == password) :
-        return apireturn(401,msgEF+'password or passwordsha256',None)
+        return apireturn(401,msgEF+'password',None)
     
     # 添加用户
     newuser = userinfo('Token',token,False)
