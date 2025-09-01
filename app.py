@@ -1,4 +1,4 @@
-from flask import Flask, request, send_from_directory, make_response, redirect, url_for
+from flask import Flask, request, send_from_directory, make_response
 import os
 import json
 import qrcode
@@ -20,10 +20,11 @@ msgUP = 'Unable to proceed: ' #无法完成
 def initialize():
     global users
     global chats
-    global userlist
-    global config
+    global useridlist
     global chatidlist
-    global emailsendlist
+    global config
+    if os.path.exists('log.txt'):
+        os.remove('log.txt')
     
     try:
         with open('config.json','r') as configdata :
@@ -46,16 +47,10 @@ def initialize():
     except:
         chats = {}
         save_chat_data()
-    
-    userlist = []
-    for user in list(users.values()):
-        userlist.append(user['user'])
+
+    useridlist = [user['user'] for user in users]
+    chatidlist = [chat['id'] for chat in chats]
         
-    chatidlist = []
-    for chat in list(chats.values()):
-        chatidlist.append(chat['user'])
-        
-    emailsendlist = {}
 
 def sha256text(text):
     """sha256哈希字符串"""
@@ -157,7 +152,7 @@ def userlevel(chatid,user,level):
 def adduser(name,token,user,password):
     """添加用户"""
     users[user] = {'user':user,'name':name,'Token':token,'time':time.time(),'password':password}
-    userlist.append(id)
+    useridlist.append(user)
     save_user_data()
     
 def addchat(name,password,ownertoken,id):
@@ -207,8 +202,8 @@ def api_user_register():
         apireturn(403,msgEF+'user',None)
 
     # 检查用户编号是否重复
-    _userlist = [user['user'] for user in list(users.values()) ]
-    if user in _userlist:
+    _useridlist = [user['user'] for user in list(users.values()) ]
+    if user in _useridlist:
         apireturn(403,msgUP+'The user is taken',None)
 
     # 本地存储
@@ -548,9 +543,7 @@ def api_chat_user_list(chatid):
         return apireturn(401,msgEF + 'token',None)
     
     # 检查是否在聊天内
-    chatusertoken = []
-    for chatuser in chats[chatid]['user']:
-        chatusertoken.append(userinfo('user',chatuser['user'],True)['Token'])
+    chatusertoken = [userinfo('user',chatuser['user'],True)['Token'] for chatuser in chats[chatid]['user']]
     if not(token in chatusertoken):
         return apireturn(403,msgIP,None)
     
@@ -582,9 +575,7 @@ def api_chat_chat_send(chatid):
         return apireturn(403,msgIP,None)
     
     # 检查是否在聊天内
-    chatusertoken = []
-    for chatuser in chats[chatid]['user']:
-        chatusertoken.append(userinfo('user',chatuser['user'],True)['Token'])
+    chatusertoken = [userinfo('user',chatuser['user'],True)['Token'] for chatuser in chats[chatid]['user']]
     if not(token in chatusertoken):
         return apireturn(403,msgIP,None)
     
@@ -683,9 +674,7 @@ def api_chat_chat_get(chatid):
         return apireturn(401,msgEF + 'token',None)
     
     # 检查是否在聊天内
-    chatusertoken = []
-    for chatuser in chats[chatid]['user']:
-        chatusertoken.append(userinfo('user',chatuser['user'],True)['Token'])
+    chatusertoken = [userinfo('user',chatuser['user'],True)['Token'] for chatuser in chats[chatid]['user']]
     if not(token in chatusertoken):
         return apireturn(403,msgIP,None)
     
@@ -724,9 +713,7 @@ def api_chat_file_get(chatid):
         return apireturn(401,msgEF + 'token',None)
     
     # 检查是否在聊天内
-    chatusertoken = []
-    for chatuser in chats[chatid]['user']:
-        chatusertoken.append(userinfo('user',chatuser['user'],True)['Token'])
+    chatusertoken = [userinfo('user',chatuser['user'],True)['Token'] for chatuser in chats[chatid]['user']]
     if not(token in chatusertoken):
         return apireturn(403,msgIP,None)
     
@@ -767,9 +754,7 @@ def api_chat_chat_retract(chatid):
         return apireturn(403,msgIP,None)
     
     # 检查是否在聊天内
-    chatusertoken = []
-    for chatuser in chats[chatid]['user']:
-        chatusertoken.append(userinfo('user',chatuser['user'],True)['Token'])
+    chatusertoken = [userinfo('user',chatuser['user'],True)['Token'] for chatuser in chats[chatid]['user']]
     if not(token in chatusertoken):
         return apireturn(403,msgIP,None)
     
@@ -830,9 +815,7 @@ def api_chat_level_set(chatid):
         return apireturn(401,msgEF + 'token',None)
     
     # 检查是否在聊天内
-    chatusertoken = []
-    for chatuser in chats[chatid]['user']:
-        chatusertoken.append(userinfo('user',chatuser['user'],True)['Token'])
+    chatusertoken = [userinfo('user',chatuser['user'],True)['Token'] for chatuser in chats[chatid]['user']]
     if not(token in chatusertoken):
         return apireturn(403,msgIP,None)
     
