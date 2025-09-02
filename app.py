@@ -3,6 +3,7 @@ import os
 import json
 import qrcode
 import base64
+import requests
 from waitress import serve
 from io import BytesIO
 import random
@@ -10,6 +11,8 @@ import hashlib
 import string
 import time
 import pyotp
+from colorama import Style, Fore, Back, init
+init()
 
 msgSC = 'Success'# 成功
 msgMF = 'Missing field: '# 缺失字段
@@ -18,14 +21,14 @@ msgUC = 'Unknown chat'# 未知聊天
 msgIP = 'Insufficient permissions'# 权限不足
 msgUP = 'Unable to proceed: ' #无法完成
 
+VERSION = 'v0.1.0-beta.3'
+
 def initialize():
     global users
     global chats
     global useridlist
     global chatidlist
     global config
-    if os.path.exists('log.txt'):
-        os.remove('log.txt')
     
     try:
         with open('config.json','r') as configdata :
@@ -51,6 +54,29 @@ def initialize():
 
     useridlist = [user['user'] for user in list(users.values())]
     chatidlist = [chat['id'] for chat in list(chats.values())]
+
+    rep = requests.get('https://api.github.com/repos/wzyaeu/Quile-chat/releases')
+    latestversion = json.loads(rep.content)[0]['name']
+    latestat = json.loads(rep.content)[0]['published_at']
+
+    os.system('cls')
+
+    print('Quile Chat 服务器')
+
+    print(Style.DIM+'│ 详细信息')
+    print(Style.RESET_ALL+Style.DIM+'├ '+Style.RESET_ALL+'服务器端口：'+
+          Fore.BLUE+str(config['SERVER_PORT']))
+    print(Style.RESET_ALL+Style.DIM+'├ '+Style.RESET_ALL+'服务器版本：'+
+          (Fore.GREEN if VERSION == latestversion else Fore.CYAN if latestversion == '未知' else Fore.YELLOW)+VERSION+' '+
+          ((Fore.GREEN+'latest') if VERSION == latestversion else '' if latestversion == '未知' else (Fore.YELLOW+'outdated')))
+    print(Style.RESET_ALL+Style.DIM+'├ '+Style.RESET_ALL+'最新版本：'+
+          (Fore.RED if latestversion == '未知' else Fore.CYAN)+latestversion+Style.RESET_ALL+' '+latestat)
+    print(Style.RESET_ALL+Style.DIM+'╰ '+Style.RESET_ALL+'按下'+Fore.CYAN+'Ctrl+c'+Style.RESET_ALL+'关闭服务器')
+
+    print(Style.DIM+'│ 配置文件')
+    for index, (key,value) in enumerate(config.items()):
+        print(Style.RESET_ALL+Style.DIM+('╰ ' if index == len(config.items())-1 else'├ ')+Style.RESET_ALL+Fore.CYAN+Style.RESET_ALL+key+'：'+Fore.BLUE+str(value))
+    
         
 
 def sha256text(text):
@@ -179,7 +205,7 @@ app = Flask(__name__)
 @app.route('/api/',methods=['POST','GET'])
 # 测试连通性
 def api():
-    return apireturn(200,msgSC,'chatapihost')
+    return apireturn(200,msgSC,{'host':'chatapihost','version':VERSION})
 
 @app.route('/api/user/register',methods=['POST','GET'])
 # 注册用户
@@ -582,13 +608,34 @@ def api_chat_chat_send(chatid):
     
     # 普通消息
     if type == '0':
-        message = requestbody.get('message')
-        if not message:
-            return apireturn(400,msgMF+'message',None)
-        
-        chats[chatid]['chat'].append({'type':'0','sender':userinfo('token',token,True)['user'],'time':time.time(),'content':{'text':message},'id':msgid() })
+        chat_send_0(token,chatid)
     # 引用消息
     elif type == '1':
+        chat_send_1(token,chatid)
+    # 文件消息
+    elif type == '2':
+        chat_send_2(token,chatid)
+    else :
+        return apireturn(400,msgEF+'type',None)
+
+    save_chat_data()
+
+    return apireturn(200,msgSC,None)
+
+def chat_send_0(request,token,chatid):
+    # 获取字段
+    try :
+        requestbody: dict = {key: str(value) for key, value in json.loads(request.data).items()}
+    except Exception as e:
+        return apireturn(400,msgUP+'error body',None)
+    message = requestbody.get('message')
+    if not message:
+        return apireturn(400,msgMF+'message',None)
+    
+    chats[chatid]['chat'].append({'type':'0','sender':userinfo('token',token,True)['user'],'time':time.time(),'content':{'text':message},'id':msgid() })
+
+def chat_send_1(request,token,chatid):
+    
         # 获取字段
         try :
             requestbody: dict = {key: str(value) for key, value in json.loads(request.data).items()}
@@ -613,9 +660,9 @@ def api_chat_chat_send(chatid):
             return apireturn(400,msgEF+'citation',None)
         
         chats[chatid]['chat'].append({'type':'1','sender':userinfo('token',token,True)['user'],'time':time.time(),'content':{'text':message,'citation':citation},'id':msgid() })
-    # 文件消息
-    elif type == '2':
-        # 获取上传的文件对象
+
+def chat_send_2(request,token,chatid):
+    # 获取上传的文件对象
         uploaded_file = request.files.get('file')
         if not uploaded_file:
             return apireturn(400, msgMF + 'file', None)
@@ -659,12 +706,6 @@ def api_chat_chat_send(chatid):
 
         # 添加信息
         chats[chatid]['chat'].append({'type':'2','sender':userinfo('token',token,False)['user'],'time':time.time(),'content':filedata,'id':sha256text(str(int(time.time()))+str(random.randint(0,9999))) })
-    else :
-        return apireturn(400,msgEF+'type',None)
-
-    save_chat_data()
-
-    return apireturn(200,msgSC,None)
 
 @app.route('/api/chat/<int:chatid>/chat/get',methods=['POST','GET'])
 # 获取聊天信息
@@ -867,6 +908,4 @@ def api_chat_level_set(chatid):
     return apireturn(200,msgSC,None)
 
 if __name__ == '__main__':
-    initialize()
-    print('按下Ctrl+c关闭服务')
     serve(app, host='127.0.0.1', port=config['SERVER_PORT'])
