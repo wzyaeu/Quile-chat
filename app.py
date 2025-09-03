@@ -980,14 +980,6 @@ def api_chat_level_set(chatid):
     
     return apireturn(200,msgSC,None)
 
-
-@app.route('/login',methods=['GET'])
-# 撤销自己的聊天信息
-def web_login():
-    apirun('/login',type='web')
-    return webreturn(200,send_file('html/login.html'))
-
-
 if __name__ == '__main__':
     initialize()
     serve(app, host='127.0.0.1', port=config['SERVER_PORT'])
