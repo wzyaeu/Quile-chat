@@ -60,21 +60,23 @@ def initialize():
         latestat = '-'
 
     os.system('cls')
-    print('Quile Chat 服务器')
+    import pyfiglet
+    print(Fore.CYAN+pyfiglet.figlet_format("Q u i l e  C h a t"))
 
-    print(Style.DIM+'│ 详细信息')
+    print(Style.RESET_ALL+'服务器信息')
     print(Style.RESET_ALL+Style.DIM+'├ '+Style.RESET_ALL+'服务器端口：'+
           Fore.LIGHTBLUE_EX+str(config['SERVER_PORT']))
     print(Style.RESET_ALL+Style.DIM+'├ '+Style.RESET_ALL+'服务器版本：'+
           (Fore.GREEN if VERSION == latestversion else Fore.CYAN if latestversion == '未知' else Fore.YELLOW)+VERSION+' '+
           ((Fore.GREEN+'latest') if VERSION == latestversion else '' if latestversion == '未知' else (Fore.YELLOW+'outdated')))
-    print(Style.RESET_ALL+Style.DIM+'├ '+Style.RESET_ALL+'最新版本：'+
+    print(Style.RESET_ALL+Style.DIM+'╰ '+Style.RESET_ALL+'最新版本：'+
           (Fore.RED if latestversion == '未知' else Fore.CYAN)+latestversion+Style.RESET_ALL+' '+latestat)
-    print(Style.RESET_ALL+Style.DIM+'╰ '+Style.RESET_ALL+'按下'+Fore.CYAN+'Ctrl+c'+Style.RESET_ALL+'关闭服务器')
 
-    print(Style.DIM+'│ 配置文件')
+    print(Style.RESET_ALL+'配置文件')
     for index, (key,value) in enumerate(config.items()):
         print(Style.RESET_ALL+Style.DIM+('╰ ' if index == len(config.items())-1 else'├ ')+Style.RESET_ALL+Fore.CYAN+Style.RESET_ALL+key+'：'+Fore.LIGHTBLUE_EX+str(value)+Style.RESET_ALL)
+    
+    print(Style.RESET_ALL+'按下'+Fore.CYAN+'Ctrl+c'+Style.RESET_ALL+'关闭服务器')
     
 def apirun(api,valid=True):
     if not config['API_LOG']:
