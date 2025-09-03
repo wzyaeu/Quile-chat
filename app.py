@@ -29,9 +29,11 @@ def initialize():
         with open('config.json','r') as configdata :
             config = json.loads(configdata.read())
     except:
-        config = {'TOKEN_EXPIRATION_TIME':1*60*60*1000,'MESSAGE_RETRACT_TIME':1*60*60*1000,'SERVER_PORT':5000,'RESPONSE_LOG':True,'SERVER_NAME':'Quile Server'}
+        config = {'TOKEN_EXPIRATION_TIME':1*60*60*1000,'MESSAGE_RETRACT_TIME':1*60*60*1000,'SERVER_PORT':5000,'RESPONSE_LOG':True,'SERVER_NAME':'Quile Server','MAX_CONTENT_LENGTH':{'unit':3,'quantity':1}}
         with open('config.json','w') as configdata :
             configdata.write(json.dumps(config))
+
+    app.config['MAX_CONTENT_LENGTH'] = (1024 ^ config['MAX_CONTENT_LENGTH']['unit']) * config['MAX_CONTENT_LENGTH']['quantity']
 
     try:
         with open('user.json','r') as userdata :
@@ -331,16 +333,26 @@ def api_user_info():
     except Exception as e:
         return apireturn(400,msgUP+'error body',None)
     apibody(requestbody)
-    user = requestbody.get('user')
-    if not user:
-        return apireturn(400,msgMF+'user',None)
+    token = requestbody.get('token')
+    if not token:
+        return apireturn(400,msgMF+'token',None)
     
-    # 检查输入是否正确
-    if not(user in users):
-        return apireturn(400,msgEF+'user',None)
+    # 检查token
+    if not Verify_token(token) :
+        return apireturn(401,msgEF+'token',None)
 
     # 获取用户信息
-    info = userinfo('user',user,False)
+    info = userinfo('token',token,False)
+
+    # 获取已加入聊天的信息
+    joinchat = []
+    for chat in list(chats.values()):
+        for chatuser in list(chat['user'].values()):
+            if chatuser['user'] == info['user']:
+                joinchat.append(chatinfo(chat['id']))
+                break
+
+    info['joinchat'] = joinchat
 
     return apireturn(200,msgSC,info)
 @app.route('/api/user/joinchat',methods=['POST'])
@@ -737,7 +749,7 @@ def chat_send_2(request,token,chatid):
             # 生成保存目录
             base_storage_dir = 'files'
             os.makedirs(base_storage_dir, exist_ok=True)
-            chat_storage_dir = os.path.join(base_storage_dir, chat_id)
+            chat_storage_dir = os.path.join(base_storage_dir, chat_id, '/chat/')
             os.makedirs(chat_storage_dir, exist_ok=True)
 
             # 保存文件
@@ -844,7 +856,7 @@ def api_chat_file_get(chatid):
         return apireturn(403,msgIP,None)
     
     # 检查文件是否存在
-    filepath = "files/"+chatid
+    filepath = "files/"+chatid+"/chat"
     if not os.path.exists(filepath+"/"+fileid):
         return apireturn(404,msgUP+"The fileid is incorrect or the file has been deleted.",None)
     
@@ -949,7 +961,7 @@ def api_chat_level_set(chatid):
         return apireturn(403,msgIP,None)
     
     # 检查是否有权限
-    if userlevel(chatid, user, 2):
+    if userlevel(chatid, userinfo('token',token,False)['user'], 2):
         return apireturn(403,msgIP,None)
     
     # 检查对方是否在聊天内
@@ -979,7 +991,86 @@ def api_chat_level_set(chatid):
         return apireturn(401,msgEF + 'user',None)
     
     return apireturn(200,msgSC,None)
+@app.route('/api/chat/<int:chatid>/anncmnt',methods=['POST'])
+# 查看公告
+def api_chat_anncmnt(chatid):
+    apirun('/api/chat/'+chatid+'/anncmnt')
+    # 检查聊天编号
+    if not (chatid in chatidlist):
+        return apireturn(404,msgUC,None)
+    
+    # 获取字段
+    try :
+        requestbody: dict = {key: str(value) for key, value in json.loads(request.data).items()}
+    except Exception as e:
+        return apireturn(400,msgUP+'error body',None)
+    apibody(requestbody)
+    token = requestbody.get('token')
+    if not token:
+        return apireturn(400,msgMF + 'token',None)
+    
+    # 检查token
+    if not Verify_token(token) :
+        return apireturn(401,msgEF + 'token',None)
+    
+    # 检查是否在聊天内
+    chatusertoken = [userinfo('user',chatuser['user'],True)['token'] for chatuser in chats[chatid]['user']]
+    if not(token in chatusertoken):
+        return apireturn(401,msgUP,None)
+    # 获取公告
+    anncmnt = chats[chatid]['setting']['anncmnt']
+    
+    return apireturn(200,msgSC,{'anncmnt':anncmnt})
 
+@app.route('/api/chat/<int:chatid>/anncmnt/add',methods=['POST'])
+# 增加公告
+def api_chat_level_set(chatid):
+    apirun('/api/chat/'+chatid+'/anncmnt/add')
+    # 检查聊天编号
+    if not (chatid in chatidlist):
+        return apireturn(404,msgUC,None)
+    
+    # 获取字段
+    try :
+        requestbody: dict = {key: str(value) for key, value in json.loads(request.data).items()}
+    except Exception as e:
+        return apireturn(400,msgUP+'error body',None)
+    apibody(requestbody)
+    token = requestbody.get('token')
+    if not token:
+        return apireturn(400,msgMF + 'token',None)
+    title = requestbody.get('title',0)
+    if not title:
+        return apireturn(400,msgMF + 'title',None)
+    content = requestbody.get('content',0)
+    if not content:
+        return apireturn(400,msgMF + 'content',None)
+    
+    # 检查token
+    if not Verify_token(token) :
+        return apireturn(401,msgEF + 'token',None)
+    
+    # 检查是否在聊天内
+    chatusertoken = [userinfo('user',chatuser['user'],True)['token'] for chatuser in chats[chatid]['user']]
+    if not(token in chatusertoken):
+        return apireturn(403,msgIP,None)
+    
+    # 检查是否有权限
+    if userlevel(chatid, userlevel(chatid, userinfo('token',token,False)['user'], 2), 2):
+        return apireturn(403,msgIP,None)
+        
+    # 检查content
+    import base64
+    try:
+        content_decode = base64.b64encode(content)
+    except:
+        return apireturn(403,msgEF + 'content',None)
+    
+    # 添加新公告
+    chats[chatid]['setting']['anncmnt'].append({'title':str(title),'content':content})
+
+    
+    return apireturn(200,msgSC,None)
 if __name__ == '__main__':
     initialize()
     serve(app, host='127.0.0.1', port=config['SERVER_PORT'])
