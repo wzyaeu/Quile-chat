@@ -1,4 +1,4 @@
-from flask import Flask, request, send_from_directory, make_response
+from flask import Flask, request, send_from_directory, make_response, send_file
 import os
 import json
 from waitress import serve
@@ -29,7 +29,7 @@ def initialize():
         with open('config.json','r') as configdata :
             config = json.loads(configdata.read())
     except:
-        config = {'TOKEN_EXPIRATION_TIME':1*60*60*1000,'MESSAGE_RETRACT_TIME':1*60*60*1000,'SERVER_PORT':5000,'API_LOG':True}
+        config = {'TOKEN_EXPIRATION_TIME':1*60*60*1000,'MESSAGE_RETRACT_TIME':1*60*60*1000,'SERVER_PORT':5000,'RESPONSE_LOG':True,'SERVER_NAME':'Quile Server'}
         with open('config.json','w') as configdata :
             configdata.write(json.dumps(config))
 
@@ -50,13 +50,14 @@ def initialize():
     useridlist = [user['user'] for user in list(users.values())]
     chatidlist = [chat['id'] for chat in list(chats.values())]
     
+    unknownversion = '未知'
     try:
         import requests
-        rep = requests.get('https://api.github.com/repos/wzyaeu/Quile-chat/releases',verify=False)
+        rep = requests.get('https://api.github.com/repos/wzyaeu/Quile-chat/releases')
         latestversion = json.loads(rep.content)[0]['name']
         latestat = json.loads(rep.content)[0]['published_at']
     except:
-        latestversion = '未知'
+        latestversion = unknownversion
         latestat = '-'
 
     os.system('cls')
@@ -67,25 +68,25 @@ def initialize():
     print(Style.RESET_ALL+Style.DIM+'├ '+Style.RESET_ALL+'服务器端口：'+
           Fore.LIGHTBLUE_EX+str(config['SERVER_PORT']))
     print(Style.RESET_ALL+Style.DIM+'├ '+Style.RESET_ALL+'服务器版本：'+
-          (Fore.GREEN if VERSION == latestversion else Fore.CYAN if latestversion == '未知' else Fore.YELLOW)+VERSION+' '+
-          ((Fore.GREEN+'latest') if VERSION == latestversion else '' if latestversion == '未知' else (Fore.YELLOW+'outdated')))
+          (Fore.GREEN if VERSION == latestversion else Fore.CYAN if latestversion == unknownversion else Fore.YELLOW)+VERSION+' '+
+          ((Fore.GREEN+'latest') if VERSION == latestversion else '' if latestversion == unknownversion else (Fore.YELLOW+'outdated')))
     print(Style.RESET_ALL+Style.DIM+'╰ '+Style.RESET_ALL+'最新版本：'+
-          (Fore.RED if latestversion == '未知' else Fore.CYAN)+latestversion+Style.RESET_ALL+' '+latestat)
+          (Fore.RED if latestversion == unknownversion else Fore.CYAN)+latestversion+Style.RESET_ALL+' '+latestat)
 
     print(Style.RESET_ALL+'配置文件')
     for index, (key,value) in enumerate(config.items()):
         print(Style.RESET_ALL+Style.DIM+('╰ ' if index == len(config.items())-1 else'├ ')+Style.RESET_ALL+Fore.CYAN+Style.RESET_ALL+key+'：'+Fore.LIGHTBLUE_EX+str(value)+Style.RESET_ALL)
     
     print(Style.RESET_ALL+'按下'+Fore.CYAN+'Ctrl+c'+Style.RESET_ALL+'关闭服务器')
-    
-def apirun(api,valid=True):
-    if not config['API_LOG']:
+
+def apirun(api,valid=True,type='api'):
+    if not config['RESPONSE_LOG']:
         return
     import datetime
-    print('\n'+Style.RESET_ALL+Style.DIM+'['+Style.RESET_ALL+datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")+Style.DIM+']'+'> '+Style.RESET_ALL+(Fore.CYAN if valid else Fore.RED)+api)
+    print('\n'+Style.RESET_ALL+Style.DIM+'['+Style.RESET_ALL+((Fore.CYAN+'API') if type=='api' else (Fore.GREEN+'WEB'))+' '+Style.RESET_ALL+datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")+Style.DIM+']'+'> '+Style.RESET_ALL+(Fore.CYAN if valid else Fore.RED)+api)
 
 def apibody(body:dict):
-    if not config['API_LOG']:
+    if not config['RESPONSE_LOG']:
         return
     from itertools import islice
     for key, value in islice(body.items(), 4) :
@@ -108,7 +109,7 @@ def save_chat_data():
 
 def apireturn(code,msg,data):
     """格式化API返回内容"""
-    if not config['API_LOG']:
+    if not config['RESPONSE_LOG']:
         return
     print(Style.RESET_ALL+Style.DIM+'├ '+Style.RESET_ALL+'返回状态码：'+
           (Style.RESET_ALL if str(code)[0] == '1' else (Fore.CYAN if str(code)[0] == '2' else (Fore.YELLOW if str(code)[0] == '3' else (Fore.RED if str(code)[0] == '4' else Fore.MAGENTA))))+
@@ -116,6 +117,12 @@ def apireturn(code,msg,data):
     print(Style.RESET_ALL+Style.DIM+'├ '+Style.RESET_ALL+'返回消息：'+msg)
     print(Style.RESET_ALL+Style.DIM+'╰ '+Style.RESET_ALL+'返回内容：'+(Style.DIM if data==None else Fore.LIGHTBLUE_EX)+str(data)[:100]+('...' if len(str(data))>100 else ''))
     return {'code':code,'msg':msg,'data':data}, code
+
+def webreturn(code,data):
+    print(Style.RESET_ALL+Style.DIM+'╰ '+Style.RESET_ALL+'返回状态码：'+
+          (Style.RESET_ALL if str(code)[0] == '1' else (Fore.CYAN if str(code)[0] == '2' else (Fore.YELLOW if str(code)[0] == '3' else (Fore.RED if str(code)[0] == '4' else Fore.MAGENTA))))+
+          str(code))
+    return data, code
 
 def Token() -> str:
     import string
@@ -220,15 +227,18 @@ def chatrules(chatid,rulename)-> dict:
     else:
         return chats[chatid]['rules']['rulename']
 
-initialize()
 app = Flask(__name__)
 
 # API
 @app.errorhandler(404)
 def page_not_found(error):
     from urllib.parse import urlparse
-    apirun(urlparse(str(request.url)).path,valid=False)
-    return apireturn(404,msgUP+'Unknown API',None)
+    if urlparse(str(request.url)).path.strip('/').split('/')[0] == 'api':
+        apirun(urlparse(str(request.url)).path,valid=False,type='api')
+        return apireturn(404,msgUP+'Unknown API',None)
+    else:
+        apirun(urlparse(str(request.url)).path,valid=False,type='web')
+        return webreturn(404,send_file('html/404.html'))
 
 @app.route('/api',methods=['POST'])
 # 测试连通性
@@ -970,5 +980,14 @@ def api_chat_level_set(chatid):
     
     return apireturn(200,msgSC,None)
 
+
+@app.route('/login',methods=['GET'])
+# 撤销自己的聊天信息
+def web_login():
+    apirun('/login',type='web')
+    return webreturn(200,send_file('html/login.html'))
+
+
 if __name__ == '__main__':
+    initialize()
     serve(app, host='127.0.0.1', port=config['SERVER_PORT'])

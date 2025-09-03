@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="zh">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>xxx | 登录</title>
+    <style>
+        :root {
+            --border-radius: 20px;
+            --background-color: rgb(216, 237, 255);
+            --main-color: rgb(55, 162, 255);
+            --secondary-color: rgb(137, 200, 255);
+            --component-color: rgb(207, 230, 252);
+            --component-border-radius: 15px;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+        }
+
+        html {
+            height: 100%;
+            width: 100%;
+        }
+
+        body {
+            height: 100%;
+            width: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-color: var(--background-color);
+        }
+
+        main {
+            height: 500px;
+            width: 400px;
+            background-color: rgb(229, 243, 255);
+            border-radius: var(--border-radius);
+            box-shadow: 0 10px 20px 20px rgba(238, 247, 255, 0.164);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .title {
+            flex: 1;
+            font-size: 2rem;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--main-color);
+        }
+
+        .inputdiv {
+            flex: 2;
+            display: flex;
+            align-items: center;
+            flex-direction: column;
+        }
+
+        .inputdiv form {
+            display: flex;
+            align-items: center;
+            flex-direction: column;
+            justify-content: top;
+        }
+
+        .inputdiv input[type="text"],
+        input[type="password"] {
+            border: 0;
+            font-size: 0.9rem;
+            margin: 7px 0;
+            outline: none;
+            width: 280px;
+            border-radius: var(--component-border-radius);
+            height: 40px;
+            background-color: var(--component-color);
+            padding-inline-start: 10px;
+            padding-inline-end: 10px;
+            transition: all 0.3s ease-out;
+            color: rgb(255, 255, 255);
+        }
+
+        .inputdiv input:focus {
+            background-color: var(--secondary-color);
+        }
+
+        .inputdiv div {
+            display: flex;
+            align-items: center;
+            flex-direction: row;
+            width: 100%;
+            gap: 10px;
+        }
+
+        .inputdiv button[type="submit"] {
+            border: 0;
+            font-size: 0.9rem;
+            margin: 7px 0;
+            border-radius: var(--component-border-radius);
+            height: 40px;
+            background-color: var(--main-color);
+            transition: all 0.3s ease-out;
+            color: rgb(255, 255, 255);
+            flex: 2;
+        }
+
+        .inputdiv button:hover[type="submit"] {
+            background-color: var(--secondary-color);
+            cursor: pointer;
+        }
+
+        .inputdiv button:focus[type="submit"] {
+            background-color: var(--main-color);
+        }
+
+        .inputdiv a {
+            flex: 1;
+        }
+
+        .register {
+            border: 0;
+            font-size: 0.9rem;
+            margin: 7px 0;
+            width: 100%;
+            border-radius: var(--component-border-radius);
+            height: 40px;
+            background-color: var(--secondary-color);
+            transition: all 0.3s ease-out;
+            color: rgb(255, 255, 255);
+        }
+
+        .register:hover {
+            cursor: pointer;
+        }
+    </style>
+</head>
+
+<body>
+    <main>
+        <div class="title">
+            登录到 xxx
+        </div>
+        <div class="inputdiv">
+            <form action="api/login" method="post">
+                <input type="text" id="name" name="name" required placeholder="用户名">
+                <input type="password" id="password" name="password" required placeholder="密码">
+                <input type="text" id="otpcode" name="otpcode" required placeholder="OTP验证码（可选）">
+            </form>
+            <div>
+                <a href="/register">
+                    <button class="register">注册</button>
+                </a>
+                <button type="submit">登录</button>
+            </div>
+        </div>
+    </main>
+</body>
+
+</html>
