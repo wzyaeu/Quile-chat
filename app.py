@@ -135,8 +135,8 @@ def Token() -> str:
     
     return token
 
-def msgid() -> str:
-    """生成消息编号"""
+def id() -> str:
+    """生成编号"""
     return sha256text(str(int(time.time()))+'-'+str(random.randint(0,9999)))
 
 def Verify_token(token) -> bool:
@@ -709,7 +709,7 @@ def chat_send_0(request,token,chatid):
     if not message:
         return apireturn(400,msgMF+'message',None)
     
-    chats[chatid]['chat'].append({'type':'0','sender':userinfo('token',token,True)['user'],'time':time.time(),'content':{'text':message},'id':msgid() })
+    chats[chatid]['chat'].append({'type':'0','sender':userinfo('token',token,True)['user'],'time':time.time(),'content':{'text':message},'id':id() })
 
 def chat_send_1(request,token,chatid):
     
@@ -737,7 +737,7 @@ def chat_send_1(request,token,chatid):
         if not flag:
             return apireturn(400,msgEF+'citation',None)
         
-        chats[chatid]['chat'].append({'type':'1','sender':userinfo('token',token,True)['user'],'time':time.time(),'content':{'text':message,'citation':citation},'id':msgid() })
+        chats[chatid]['chat'].append({'type':'1','sender':userinfo('token',token,True)['user'],'time':time.time(),'content':{'text':message,'citation':citation},'id':id() })
 
 def chat_send_2(request,token,chatid):
     # 获取上传的文件对象
@@ -986,7 +986,7 @@ def api_chat_level_set(chatid):
 
             # 添加消息
             content =  {'tiptype':'levelset','user':userinfo('token',token,False)['user'],'reactive':chatuser['user'],'level':level}
-            chats[chatid]['chat'].append({'type':'-1','time':time.time(),'content':content,'id':msgid() })
+            chats[chatid]['chat'].append({'type':'-1','time':time.time(),'content':content,'id':id() })
     if not flag :
         return apireturn(401,msgEF + 'user',None)
     
@@ -1020,11 +1020,11 @@ def api_chat_anncmnt(chatid):
     # 获取公告
     anncmnt = chats[chatid]['setting']['anncmnt']
     
-    return apireturn(200,msgSC,{'anncmnt':anncmnt})
+    return apireturn(200,msgSC,anncmnt)
 
 @app.route('/api/chat/<int:chatid>/anncmnt/add',methods=['POST'])
 # 增加公告
-def api_chat_level_set(chatid):
+def api_chat_anncmnt_add(chatid):
     apirun('/api/chat/'+chatid+'/anncmnt/add')
     # 检查聊天编号
     if not (chatid in chatidlist):
@@ -1067,9 +1067,117 @@ def api_chat_level_set(chatid):
         return apireturn(403,msgEF + 'content',None)
     
     # 添加新公告
-    chats[chatid]['setting']['anncmnt'].append({'title':str(title),'content':content})
+    chats[chatid]['setting']['anncmnt'].append({'title':str(title),'content':content,'id':id(),'creation time':time.time(),'modify time':time.time()})
 
     
+    return apireturn(200,msgSC,None)
+
+@app.route('/api/chat/<int:chatid>/anncmnt/modify',methods=['POST'])
+# 更改公告
+def api_chat_anncmnt_modify(chatid):
+    apirun('/api/chat/'+chatid+'/anncmnt/modify')
+    # 检查聊天编号
+    if not (chatid in chatidlist):
+        return apireturn(404,msgUC,None)
+    
+    # 获取字段
+    try :
+        requestbody: dict = {key: str(value) for key, value in json.loads(request.data).items()}
+    except Exception as e:
+        return apireturn(400,msgUP+'error body',None)
+    apibody(requestbody)
+    token = requestbody.get('token')
+    if not token:
+        return apireturn(400,msgMF + 'token',None)
+    mid = requestbody.get('id',0)
+    if not mid:
+        return apireturn(400,msgMF + 'id',None)
+    title = requestbody.get('title',0)
+    if not title:
+        return apireturn(400,msgMF + 'title',None)
+    content = requestbody.get('content',0)
+    if not content:
+        return apireturn(400,msgMF + 'content',None)
+    
+    # 检查token
+    if not Verify_token(token) :
+        return apireturn(401,msgEF + 'token',None)
+    
+    # 检查是否在聊天内
+    chatusertoken = [userinfo('user',chatuser['user'],True)['token'] for chatuser in chats[chatid]['user']]
+    if not(token in chatusertoken):
+        return apireturn(403,msgIP,None)
+    
+    # 检查是否有权限
+    if userlevel(chatid, userlevel(chatid, userinfo('token',token,False)['user'], 2), 2):
+        return apireturn(403,msgIP,None)
+    
+    # 检查编号
+    flag = False
+    for anncmnt in chats[chatid]['setting']['anncmnt']:
+        if anncmnt['id'] == mid:
+            flag = True
+        
+            # 检查content
+            import base64
+            try:
+                content_decode = base64.b64encode(content)
+            except:
+                return apireturn(403,msgEF + 'content',None)
+            
+            anncmnt['title'] = title
+            anncmnt['content'] = content
+            anncmnt['modify time'] = time.time()
+            break
+    if not flag :
+        return apireturn(401,msgEF + 'id',None)
+
+    return apireturn(200,msgSC,None)
+
+@app.route('/api/chat/<int:chatid>/anncmnt/del',methods=['POST'])
+# 更改公告
+def api_chat_anncmnt_del(chatid):
+    apirun('/api/chat/'+chatid+'/anncmnt/del')
+    # 检查聊天编号
+    if not (chatid in chatidlist):
+        return apireturn(404,msgUC,None)
+    
+    # 获取字段
+    try :
+        requestbody: dict = {key: str(value) for key, value in json.loads(request.data).items()}
+    except Exception as e:
+        return apireturn(400,msgUP+'error body',None)
+    apibody(requestbody)
+    token = requestbody.get('token')
+    if not token:
+        return apireturn(400,msgMF + 'token',None)
+    mid = requestbody.get('id',0)
+    if not mid:
+        return apireturn(400,msgMF + 'id',None)
+    
+    # 检查token
+    if not Verify_token(token) :
+        return apireturn(401,msgEF + 'token',None)
+    
+    # 检查是否在聊天内
+    chatusertoken = [userinfo('user',chatuser['user'],True)['token'] for chatuser in chats[chatid]['user']]
+    if not(token in chatusertoken):
+        return apireturn(403,msgIP,None)
+    
+    # 检查是否有权限
+    if userlevel(chatid, userlevel(chatid, userinfo('token',token,False)['user'], 2), 2):
+        return apireturn(403,msgIP,None)
+    
+    # 检查编号
+    flag = False
+    for anncmnt in chats[chatid]['setting']['anncmnt']:
+        if anncmnt['id'] == mid:
+            flag = True
+            del anncmnt
+            break
+    if not flag :
+        return apireturn(401,msgEF + 'id',None)
+
     return apireturn(200,msgSC,None)
 if __name__ == '__main__':
     initialize()
