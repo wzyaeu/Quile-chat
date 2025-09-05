@@ -7,7 +7,7 @@ import hashlib
 import time
 import pyotp
 from colorama import Style, Fore, Back, init
-from typing import TypedDict, NotRequired
+from typing_extensions import TypedDict, NotRequired
 init()
 
 VERSION = 'v0.1.0-beta.4'
@@ -48,8 +48,8 @@ class type_chat_setting_anncmnt(TypedDict):
     title: str
     content: str
     id: str
-    "creation time": int
-    "modify time": int
+    creation_time: int
+    modify_time: int
 
 class type_chat_setting(TypedDict):
     anncmnt: list[type_chat_setting_anncmnt]
@@ -1297,7 +1297,7 @@ def api_chat_anncmnt_add(chatid):
         return apireturn(403,msg_type.EF + 'content',None)
     
     # 添加新公告
-    chats[chatid]['setting']['anncmnt'].append({'title':str(title),'content':content,'id':id(),'creation time':timestamp(),'modify time':timestamp()})
+    chats[chatid]['setting']['anncmnt'].append({'title':str(title),'content':content,'id':id(),'creation_time':timestamp(),'modify_time':timestamp()})
 
     
     return apireturn(200,msg_type.SC,None)
@@ -1361,7 +1361,7 @@ def api_chat_anncmnt_modify(chatid):
             
             anncmnt['title'] = title
             anncmnt['content'] = content
-            anncmnt['modify time'] = timestamp()
+            anncmnt['modify_time'] = timestamp()
             break
     if not flag :
         return apireturn(401,msg_type.EF + 'id',None)
