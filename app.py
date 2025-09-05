@@ -10,7 +10,7 @@ from colorama import Style, Fore, Back, init
 from typing import TypedDict, NotRequired
 init()
 
-VERSION = 'v0.1.0-beta.3'
+VERSION = 'v0.1.0-beta.4'
 
 class chat_type():
     group = 'group'
