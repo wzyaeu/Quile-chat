@@ -7,7 +7,7 @@ import hashlib
 import time
 import pyotp
 from colorama import Style, Fore, Back, init
-from typing import TypedDict, NotRequired
+from typing_extensions import TypedDict, NotRequired
 init()
 
 VERSION = 'v0.1.0-beta.4'
@@ -23,45 +23,6 @@ class msg_type():
     UC = 'Unknown chat'# 未知聊天
     IP = 'Insufficient permissions'# 权限不足
     UP = 'Unable to proceed: ' #无法完成
-
-class type_user_friend(TypedDict):
-    user: str
-    chatid: int
-
-class type_user(TypedDict):
-    user: str
-    name: str
-    token: str
-    time: int
-    password: str
-    blacklist: list[str]
-    friend: list[type_user_friend]
-
-class type_chat_chat(TypedDict):
-    type: str
-    sender: NotRequired[str]
-    time: int
-    content: dict
-    id: str
-
-class type_chat_setting_anncmnt(TypedDict):
-    title: str
-    content: str
-    id: str
-    "creation time": int
-    "modify time": int
-
-class type_chat_setting(TypedDict):
-    anncmnt: list[type_chat_setting_anncmnt]
-
-class type_chat(TypedDict):
-    type: str
-    id: str
-    name: NotRequired[str]
-    password: NotRequired[str]
-    chat: list[type_chat_chat]
-    setting: list[type_chat_setting]
-
 def initialize():
     global users
     global chats
@@ -83,8 +44,6 @@ def initialize():
     except:
         users = {}
         save_user_data()
-
-    users: dict[str,type_user] = users
     
     try:
         with open('chat.json','r') as chatdata :
@@ -92,8 +51,6 @@ def initialize():
     except:
         chats = {}
         save_chat_data()
-
-    chats: dict[str,type_chat] = users
     
     unknownversion = '未知'
     try:
@@ -118,12 +75,21 @@ def initialize():
     print(Style.RESET_ALL+Style.DIM+'╰ '+Style.RESET_ALL+'最新版本：'+
           (Fore.RED if latestversion == unknownversion else Fore.CYAN)+latestversion+Style.RESET_ALL+' '+latestat)
 
-    print(Style.RESET_ALL+'配置文件')
-    for index, (key,value) in enumerate(config.items()):
-        print(Style.RESET_ALL+Style.DIM+('╰ ' if index == len(config.items())-1 else'├ ')+Style.RESET_ALL+Fore.CYAN+Style.RESET_ALL+key+'：'+Fore.LIGHTBLUE_EX+str(value)+Style.RESET_ALL)
-    
-    print(Style.RESET_ALL+'按下'+Fore.CYAN+'Ctrl+c'+Style.RESET_ALL+'关闭服务器')
+    def print_list(_list,title=None,level=0,last=0):
+        if title:
+            print(Style.RESET_ALL+title)
+        if len(_list) == 0:
+            print(Style.RESET_ALL+Style.DIM+('│ ' * (level-last)+'╰ ' * last)+'╰ （空）')
+        else:
+            for index, (key,value) in enumerate(_list.items()):
+                if type(value) == dict:
+                    print(Style.RESET_ALL+Style.DIM+('│ ' * level)+('├ 'if level == 0 or not index == 0 else str(level)+' ')+Style.RESET_ALL+Fore.CYAN+Style.RESET_ALL+key)
+                    print_list(value,level=level+1,last=(last+1 if index == len(_list.items())-1 else 0))
+                else:
+                    print(Style.RESET_ALL+Style.DIM+(('│ ' * (level-last)+'╰ ' * last) if index == len(_list.items())-1 else ('│ ' * level))+(('╰ ' if index == len(_list.items())-1 else'├ ') if level == 0 or not index == 0  else str(level)+' ')+Style.RESET_ALL+Fore.CYAN+Style.RESET_ALL+key+': '+(Fore.LIGHTBLUE_EX if type(value) == bool else Fore.LIGHTCYAN_EX if type(value) == int or type(value) == float else Fore.GREEN if type(value) == str else Fore.LIGHTYELLOW_EX)+str(value)+Style.RESET_ALL)
 
+    print_list(config,title='配置文件')
+    print(Style.RESET_ALL+'按下'+Fore.CYAN+'Ctrl+c'+Style.RESET_ALL+'关闭服务器')
 def apirun(api,valid=True,type='api'):
     if not config['RESPONSE_LOG']:
         return
@@ -705,7 +671,7 @@ def api_friend_blacklist():
 
 @app.route('/api/friend/blacklist/add',methods=['POST'])
 # 好友黑名单添加
-def api_friend_blacklist():
+def api_friend_blacklist_add():
     apirun('/api/friend/blacklist/add')
     # 获取字段
     try :
@@ -736,7 +702,7 @@ def api_friend_blacklist():
 
 @app.route('/api/friend/blacklist/del',methods=['POST'])
 # 好友黑名单删除
-def api_friend_blacklist():
+def api_friend_blacklist_del():
     apirun('/api/friend/blacklist/del')
     # 获取字段
     try :
@@ -1297,7 +1263,7 @@ def api_chat_anncmnt_add(chatid):
         return apireturn(403,msg_type.EF + 'content',None)
     
     # 添加新公告
-    chats[chatid]['setting']['anncmnt'].append({'title':str(title),'content':content,'id':id(),'creation time':timestamp(),'modify time':timestamp()})
+    chats[chatid]['setting']['anncmnt'].append({'title':str(title),'content':content,'id':id(),'creation_time':timestamp(),'modify_time':timestamp()})
 
     
     return apireturn(200,msg_type.SC,None)
@@ -1361,7 +1327,7 @@ def api_chat_anncmnt_modify(chatid):
             
             anncmnt['title'] = title
             anncmnt['content'] = content
-            anncmnt['modify time'] = timestamp()
+            anncmnt['modify_time'] = timestamp()
             break
     if not flag :
         return apireturn(401,msg_type.EF + 'id',None)
