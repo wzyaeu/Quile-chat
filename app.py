@@ -8,6 +8,7 @@ import time
 import pyotp
 from colorama import Style, Fore, Back, init
 from typing_extensions import TypedDict, NotRequired
+from cachetools import LRUCache
 init()
 
 VERSION = 'v0.1.0-beta.4'
@@ -52,42 +53,68 @@ def initialize():
         chats = {}
         save_chat_data()
     
-    unknownversion = '未知'
-    try:
-        import requests
-        rep = requests.get('https://api.github.com/repos/wzyaeu/Quile-chat/releases')
-        latestversion = json.loads(rep.content)[0]['name']
-        latestat = json.loads(rep.content)[0]['published_at'] 
-    except:
-        latestversion = unknownversion
-        latestat = '-'
+    unknownversion = {'name':'未知'}
+    versionlink = 'https://api.github.com/repos/wzyaeu/Quile-chat/releases?per_page=100'
+    flag = False
+    import requests
+    while True:
+        try:
+            rep = requests.get(versionlink,timeout=5)
+            repcontent = json.loads(rep.content)
+            latestversion = repcontent[0]
+            latestversionname = latestversion['name']
+            latestat = latestversion['published_at']
+            break
+        except requests.exceptions.ReadTimeout:
+            if flag :
+                latestversion = unknownversion
+                latestat = '-'
+                break
+            versionlink = 'https://proxy.pipers.cn/'+versionlink
+            flag = True
 
     os.system('cls')
     import pyfiglet
-    print(Fore.CYAN+pyfiglet.figlet_format("Q u i l e  C h a t"))
-
-    print(Style.RESET_ALL+'服务器信息')
-    print(Style.RESET_ALL+Style.DIM+'├ '+Style.RESET_ALL+'服务器端口：'+
-          Fore.LIGHTBLUE_EX+str(config['SERVER_PORT']))
-    print(Style.RESET_ALL+Style.DIM+'├ '+Style.RESET_ALL+'服务器版本：'+
-          (Fore.GREEN if VERSION == latestversion else Fore.CYAN if latestversion == unknownversion else Fore.YELLOW)+VERSION+' '+
-          ((Fore.GREEN+'latest') if VERSION == latestversion else '' if latestversion == unknownversion else (Fore.YELLOW+'outdated')))
-    print(Style.RESET_ALL+Style.DIM+'╰ '+Style.RESET_ALL+'最新版本：'+
-          (Fore.RED if latestversion == unknownversion else Fore.CYAN)+latestversion+Style.RESET_ALL+' '+latestat)
-
-    def print_list(_list,title=None,level=0,last=0):
+    print(Fore.CYAN+pyfiglet.figlet_format("Q u i l e  C h a t", font="standard"))
+    
+    def print_list(_list: dict|list,title=None,level=0,last=0):
         if title:
             print(Style.RESET_ALL+title)
         if len(_list) == 0:
             print(Style.RESET_ALL+Style.DIM+('│ ' * (level-last)+'╰ ' * last)+'╰ （空）')
         else:
-            for index, (key,value) in enumerate(_list.items()):
-                if type(value) == dict:
-                    print(Style.RESET_ALL+Style.DIM+('│ ' * level)+('├ 'if level == 0 or not index == 0 else str(level)+' ')+Style.RESET_ALL+Fore.CYAN+Style.RESET_ALL+key)
-                    print_list(value,level=level+1,last=(last+1 if index == len(_list.items())-1 else 0))
-                else:
-                    print(Style.RESET_ALL+Style.DIM+(('│ ' * (level-last)+'╰ ' * last) if index == len(_list.items())-1 else ('│ ' * level))+(('╰ ' if index == len(_list.items())-1 else'├ ') if level == 0 or not index == 0  else str(level)+' ')+Style.RESET_ALL+Fore.CYAN+Style.RESET_ALL+key+': '+(Fore.LIGHTBLUE_EX if type(value) == bool else Fore.LIGHTCYAN_EX if type(value) == int or type(value) == float else Fore.GREEN if type(value) == str else Fore.LIGHTYELLOW_EX)+str(value)+Style.RESET_ALL)
+            if type(_list) is dict:
+                for index, (key,value) in enumerate(_list.items()):
+                    if type(value) is dict or type(value) is list:
+                        print(Style.RESET_ALL+Style.DIM+('│ ' * level)+'├ '+Style.RESET_ALL+Style.BRIGHT+key+Style.RESET_ALL)
+                        print_list(value,level=level+1,last=(last+1 if index == len(_list.items())-1 else 0))
+                    elif value == None:
+                        print(Style.RESET_ALL+Style.DIM+('│ ' * level)+'├ '+Style.RESET_ALL+Style.BRIGHT+key+Style.RESET_ALL+': （空）'+Style.RESET_ALL)
+                    else:
+                        print(Style.RESET_ALL+Style.DIM+(('│ ' * (level-last)+'╰ ' * last) if index == len(_list.items())-1 else ('│ ' * level))+('╰ ' if index == len(_list.items())-1 else'├ ')+Style.RESET_ALL+Fore.CYAN+Style.RESET_ALL+Style.BRIGHT+key+Style.RESET_ALL+': '+(Fore.LIGHTBLUE_EX if type(value) == bool else Fore.LIGHTCYAN_EX if type(value) == int or type(value) == float else Style.RESET_ALL if type(value) == str else Fore.LIGHTYELLOW_EX)+str(value)+Style.RESET_ALL)
+            elif type(_list) is list:
+                for index, value in enumerate(_list):
+                    if type(value) is dict or type(value) is list:
+                        print(Style.RESET_ALL+Style.DIM+('│ ' * level)+'├─╮'+Style.RESET_ALL)
+                        print_list(value,level=level+1,last=(last+1 if index == len(_list)-1 else 0))
+                    elif type(value) is None:
+                        print(Style.RESET_ALL+Style.DIM+('│ ' * level)+'├ '+Style.RESET_ALL+Style.BRIGHT+'（空）'+Style.RESET_ALL)
+                    else:
+                        print(Style.RESET_ALL+Style.DIM+(('│ ' * (level-last)+'╰ ' * last) if index == len(_list)-1 else ('│ ' * level))+('╰ ' if index == len(_list)-1 else'├ ')+Style.RESET_ALL+Fore.CYAN+Style.RESET_ALL+(Fore.LIGHTBLUE_EX if type(value) == bool else Fore.LIGHTCYAN_EX if type(value) == int or type(value) == float else Style.RESET_ALL if type(value) == str else Fore.LIGHTYELLOW_EX)+str(value)+Style.RESET_ALL)
 
+    import re
+    server_info = {'服务器端口':Fore.LIGHTBLUE_EX+str(config['SERVER_PORT']),
+                   '服务器版本':(Fore.GREEN if VERSION == latestversionname else Fore.CYAN if latestversionname == unknownversion else Fore.YELLOW)+VERSION+' '+((Fore.GREEN+'latest') if VERSION == latestversionname else '' if latestversionname == unknownversion else (Fore.YELLOW+'outdated'))
+                }
+    if not VERSION == latestversionname and not latestversionname == unknownversion:
+        body = re.split('# 🛠️修复问题\r\n|\r\n# ✨优化内容\r\n|\r\n# 💎新增功能\r\n',latestversion['body'])
+        server_info['最新版本 '+(Fore.RED if latestversionname == unknownversion else Fore.CYAN)+latestversionname+Style.RESET_ALL]={
+                       '更新时间':latestat,
+                       '版本链接':latestversion['url']+Style.RESET_ALL,
+                       Fore.LIGHTYELLOW_EX+'修复问题':body[1].split('- ')[1:].remove('_无_') if '_无_' in body[1].split('- ') else body[1].split('- ')[1:],
+                       Fore.LIGHTGREEN_EX+'优化内容':body[2].split('- ')[1:].remove('_无_') if '_无_' in body[2].split('- ') else body[2].split('- ')[1:],
+                       Fore.LIGHTBLUE_EX+'新增功能':body[3].split('- ')[1:].remove('_无_') if '_无_' in body[3].split('- ') else body[3].split('- ')[1:]}
+    print_list(server_info,title='服务器信息')
     print_list(config,title='配置文件')
     print(Style.RESET_ALL+'按下'+Fore.CYAN+'Ctrl+c'+Style.RESET_ALL+'关闭服务器')
 def apirun(api,valid=True,type='api'):
