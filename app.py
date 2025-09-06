@@ -8,7 +8,6 @@ import time
 import pyotp
 from colorama import Style, Fore, Back, init
 from typing_extensions import TypedDict, NotRequired
-from cachetools import LRUCache
 init()
 
 VERSION = 'v0.1.0-beta.4'
