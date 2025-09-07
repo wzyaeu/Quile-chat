@@ -1,6 +1,8 @@
 build/
 dist/
 .venv/
+exam/
+instance/
 app.spec
 chat\.json
 config\.json
