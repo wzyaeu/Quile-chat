@@ -11,7 +11,7 @@ from colorama import Style, Fore, Back, init
 
 init()
 app = Flask(__name__)
-VERSION = 'v0.1.1'
+VERSION = 'v0.1.0'
 
 import sys
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///data.db' if sys.platform == 'win32' else 'sqlite://data.db'
@@ -135,10 +135,10 @@ def initialize():
         server_info['最新版本 '+(Fore.RED if latestversionname == unknownversion else Fore.CYAN)+latestversionname+Style.RESET_ALL]={
                        '更新时间':latestat,
                        'release链接':latestversion['url']+Style.RESET_ALL,
-                       Fore.LIGHTCYAN_EX+'更新公告':body[0].split('\r\n'),
-                       Fore.LIGHTYELLOW_EX+'修复问题':body[1].split('- ')[1:].remove('_无_') if '_无_' in body[1].split('- ') else body[1].split('- ')[1:],
-                       Fore.LIGHTGREEN_EX+'优化内容':body[2].split('- ')[1:].remove('_无_') if '_无_' in body[2].split('- ') else body[2].split('- ')[1:],
-                       Fore.LIGHTBLUE_EX+'新增功能':body[3].split('- ')[1:].remove('_无_') if '_无_' in body[3].split('- ') else body[3].split('- ')[1:]}
+                       Fore.LIGHTCYAN_EX+'更新公告':body[1].split('\r\n'),
+                       Fore.LIGHTYELLOW_EX+'修复问题':body[2].split('- ')[1:].remove('_无_') if '_无_' in body[2].split('- ') else body[2].split('- ')[1:],
+                       Fore.LIGHTGREEN_EX+'优化内容':body[3].split('- ')[1:].remove('_无_') if '_无_' in body[3].split('- ') else body[3].split('- ')[1:],
+                       Fore.LIGHTBLUE_EX+'新增功能':body[4].split('- ')[1:].remove('_无_') if '_无_' in body[4].split('- ') else body[4].split('- ')[1:]}
     print_list(server_info,title='服务器信息')
     print_list(config,title='配置文件')
     print(Style.RESET_ALL+'按下'+Fore.CYAN+'Ctrl+c'+Style.RESET_ALL+'关闭')
@@ -1732,3 +1732,20 @@ def api_chat_anncmnt_del(chatid):
 if __name__ == '__main__':
     initialize()
     serve(app, host='127.0.0.1', port=config['SERVER_PORT'])
+    print()
+    print_list({
+        '本次启动':
+            {
+                '收到的请求':Style.RESET_ALL+str(correct_requests_number+error_requests_number),
+                '正确的请求':Style.RESET_ALL+Fore.LIGHTGREEN_EX+str(correct_requests_number)+
+                ' '+str(int(correct_requests_number/max((correct_requests_number+error_requests_number),1)*100))+'%',
+                '错误的请求':Style.RESET_ALL+Fore.LIGHTRED_EX+str(error_requests_number)+
+                ' '+str(int(error_requests_number/max((correct_requests_number+error_requests_number),1)*100))+'%',
+                '正确的返回':Style.RESET_ALL+Fore.LIGHTGREEN_EX+str(correct_return_number)+
+                ' '+str(int(correct_return_number/max((correct_return_number+error_return_number),1)*100))+'%',
+                '错误的返回':Style.RESET_ALL+Fore.LIGHTRED_EX+str(error_return_number)+
+                ' '+str(int(error_return_number/max((correct_return_number+error_return_number),1)*100))+'%'
+            }
+        }
+        ,'API访问总结')
+    input('Enter键关闭')
