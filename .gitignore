@@ -2,7 +2,7 @@ build/
 dist/
 .venv/
 exam/
-instance/
+data.db
 app.spec
 chat\.json
 config\.json

@@ -14,7 +14,9 @@ app = Flask(__name__)
 VERSION = 'v0.1.1'
 
 import sys
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///data.db' if sys.platform == 'win32' else 'sqlite://data.db'
+BASE_DIR = os.path.abspath(os.path.dirname(__file__))
+db_path = os.path.join(BASE_DIR, 'data.db')
+app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{db_path}' if sys.platform == 'win32' else f'sqlite://{db_path}'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 
@@ -102,25 +104,6 @@ def initialize():
 
     app.config['MAX_CONTENT_LENGTH'] = (1024 ^ config['MAX_CONTENT_LENGTH']['unit']) * config['MAX_CONTENT_LENGTH']['quantity']
 
-    unknownversion = {'name':'未知'}
-    versionlink = 'https://api.github.com/repos/wzyaeu/Quile-chat/releases'
-    flag = False
-    import requests
-    while True:
-        try:
-            rep = requests.get(versionlink,timeout=5)
-            repcontent = json.loads(rep.content)
-            latestversion = repcontent[0]
-            latestversionname = latestversion['name']
-            latestat = latestversion['published_at']
-            break
-        except:
-            if flag :
-                latestversion = unknownversion
-                latestat = '-'
-                break
-            versionlink = 'https://proxy.pipers.cn/'+versionlink
-            flag = True
 
     os.system('cls')
     import pyfiglet
@@ -128,17 +111,7 @@ def initialize():
     
     import re
     server_info = {'服务器端口':Fore.LIGHTBLUE_EX+str(config['SERVER_PORT']),
-                   '服务器版本':(Fore.GREEN if VERSION == latestversionname else Fore.CYAN if latestversionname == unknownversion else Fore.YELLOW)+VERSION+' '+((Fore.GREEN+'latest') if VERSION == latestversionname else '' if latestversionname == unknownversion else (Fore.YELLOW+'outdated'))
-                }
-    if not VERSION == latestversionname and not latestversionname == unknownversion:
-        body = re.split('# 💬更新公告\r\n|# 🛠️修复问题\r\n|\r\n# ✨优化内容\r\n|\r\n# 💎新增功能\r\n',latestversion['body'])
-        server_info['最新版本 '+(Fore.RED if latestversionname == unknownversion else Fore.CYAN)+latestversionname+Style.RESET_ALL]={
-                       '更新时间':latestat,
-                       'release链接':latestversion['url']+Style.RESET_ALL,
-                       Fore.LIGHTCYAN_EX+'更新公告':body[0].split('\r\n'),
-                       Fore.LIGHTYELLOW_EX+'修复问题':body[1].split('- ')[1:].remove('_无_') if '_无_' in body[1].split('- ') else body[1].split('- ')[1:],
-                       Fore.LIGHTGREEN_EX+'优化内容':body[2].split('- ')[1:].remove('_无_') if '_无_' in body[2].split('- ') else body[2].split('- ')[1:],
-                       Fore.LIGHTBLUE_EX+'新增功能':body[3].split('- ')[1:].remove('_无_') if '_无_' in body[3].split('- ') else body[3].split('- ')[1:]}
+                   '服务器版本':Fore.CYAN+VERSION+Style.RESET_ALL}
     print_list(server_info,title='服务器信息')
     print_list(config,title='配置文件')
     print(Style.RESET_ALL+'按下'+Fore.CYAN+'Ctrl+c'+Style.RESET_ALL+'关闭')
