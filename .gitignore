@@ -7,3 +7,5 @@ app.spec
 chat\.json
 config\.json
 user\.json
+config
+log/
