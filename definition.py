@@ -18,7 +18,7 @@ def flask_init():
 
     init()
     app = Flask(__name__)
-    VERSION = 'v0.1.1'
+    VERSION = 'v0.1.0'
 
     db_path = os.path.join(os.getcwd(), 'data.db')
     app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{db_path.replace('\\','/')}'
