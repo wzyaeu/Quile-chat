@@ -3,10 +3,12 @@ dist/
 .venv/
 exam/
 data.db
-app.spec
+spec
 chat.json
 config.json
 user.json
 config
 log/
+setup.py
 __pycache__
+quile-chat.png
