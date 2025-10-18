@@ -1,6 +1,7 @@
 from flask import Flask, request, send_from_directory, make_response
 from flask_sqlalchemy import SQLAlchemy
 import os
+from functools import wraps
 import json
 import logging
 from logging.handlers import RotatingFileHandler
@@ -9,7 +10,6 @@ import random
 from typing import Callable
 import hashlib
 import time
-import sys
 import pyotp
 from colorama import Style, Fore, Back, init
     
@@ -19,7 +19,7 @@ VERSION = 'v0.1.1'
 
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 db_path = os.path.join(BASE_DIR, 'data.db')
-app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{db_path}' if sys.platform == 'win32' else f'sqlite://{db_path}'
+app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{db_path}'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 
@@ -27,7 +27,6 @@ with app.app_context():
     db.create_all()
 
 class User(db.Model):
-    __tablename__ = 'users'
     user = db.Column(db.String(30), primary_key=True)
     name = db.Column(db.String(30))
     token = db.Column(db.String(25))
@@ -100,12 +99,27 @@ def apilog(func: Callable):
         return r
     return apilog_wrapper
 
+def getbody(*bodyargs):
+    def decorator(func: Callable):
+        @wraps(func)
+        def gb(*args, **kwargs):
+            try:
+                kw = {arg:(json.loads(request.data.decode('utf-8'))[arg] if arg in request.data.decode('utf-8') else None) for arg in bodyargs}
+                return func(*kw,*args,**kwargs)
+            except:
+                return apireturn(400,msg_type.UP+'error body',None)
+        return gb
+    return decorator
+
 def initialize():
     global VERSION
     global config
     global app
     global logging
     global db
+
+    with app.app_context():
+        db.create_all()
     
     # 创建log目录
     log_dir = "log"
@@ -143,7 +157,20 @@ def initialize():
         with open('config.json','r') as configdata :
             config = json.loads(configdata.read())
     except:
-        config = {'TOKEN_EXPIRATION_TIME':1*60*60*1000,'MESSAGE_RETRACT_TIME':1*60*60*1000,'SERVER_HOST':'127.0.0.1','SERVER_PORT':5000,'RESPONSE_LOG':True,'SERVER_NAME':'Quile Server','MAX_CONTENT_LENGTH':{'unit':3,'quantity':1},'FRIEND_REQUST_TIME':1*60*60*1000}
+        config = {
+                "SERVER_HOST": "127.0.0.1",
+                "SERVER_PORT": 5000,
+                "SERVER_NAME": "Quile Server",
+                "ENVIRONMENT": "D",
+                "RESPONSE_LOG": True,
+                "TOKEN_EXPIRATION_TIME": 3600000,
+                "MESSAGE_RETRACT_TIME": 3600000,
+                "MAX_CONTENT_LENGTH": {
+                    "unit": 3,
+                    "quantity": 1
+                },
+                "FRIEND_REQUST_TIME": 3600000
+            }
         with open('config.json','w') as configdata :
             configdata.write(json.dumps(config))
 
@@ -332,7 +359,7 @@ def error(error):
 # 测试连通性
 @apilog
 def api():
-    return apireturn(200,msg_type.SC,{'host':'chatapihost','version':VERSION})
+    return apireturn(200,msg_type.SC,{'host':'chatapihost','version':VERSION,'time':time.time()})
 
 # 服务器类
 @app.route('/api/serve/anncmnt',methods=['POST','GET'], endpoint='api_serve_anncmnt')
@@ -349,18 +376,11 @@ def api_serve_name():
 # 用户类
 @app.route('/api/user/register',methods=['POST'], endpoint='api_user_register')
 @apilog
+@getbody('user','name','password')
 # 注册用户
-def api_user_register():
-    # 获取字段
-    try :
-        requestbody: dict = {key: str(value) for key, value in json.loads(request.data).items()}
-    except:
-        return apireturn(400,msg_type.UP+'error body',None)
-    user = requestbody.get('user')
+def api_user_register(user,name,password):
     if not user:
         return apireturn(400,msg_type.MF+'user',None)
-    name:str = requestbody.get('name',user)
-    password = requestbody.get('password')
     if not password:
         return apireturn(400,msg_type.MF+'password',None)
 
@@ -395,20 +415,9 @@ def api_user_register():
     return apireturn(200,msg_type.SC,None)
 @app.route('/api/user/login',methods=['POST'], endpoint='api_user_login')
 @apilog
+@getbody('user','password','otpcode')
 # 登录用户
-def api_user_login():
-    # 获取字段
-    try :
-        requestbody: dict = {key: str(value) for key, value in json.loads(request.data).items()}
-    except:
-        return apireturn(400,msg_type.UP+'error body',None)
-    user = requestbody.get('user')
-    if not user:
-        return apireturn(400,msg_type.MF+'user',None)
-    password = requestbody.get('password')
-    if not password:
-        return apireturn(400,msg_type.MF+'password',None)
-    otpcode = requestbody.get('otpcode')
+def api_user_login(user,password,otpcode):
     
     # 检查user
     _user = User.query.filter_by(user=user).first()
@@ -436,18 +445,9 @@ def api_user_login():
     return apireturn(200,msg_type.SC,{'token':token})
 @app.route('/api/user/info',methods=['POST'], endpoint='api_user_info')
 @apilog
+@getbody('user','token')
 # 获取用户信息
-def api_user_info():
-    # 获取字段
-    try :
-        requestbody: dict = {key: str(value) for key, value in json.loads(request.data).items()}
-    except:
-        return apireturn(400,msg_type.UP+'error body',None)
-    user = requestbody.get('user')
-    if not user:
-        return apireturn(400,msg_type.MF+'user',None)
-    token = requestbody.get('token')
-
+def api_user_info(user,token):
     # 检查user
     _user = User.query.filter_by(user=user).first()
     if not _user:
@@ -493,14 +493,10 @@ def api_user_info():
     return apireturn(200,msg_type.SC,info)
 @app.route('/api/user/joinchat',methods=['POST'], endpoint='api_user_joinchat')
 @apilog
+@getbody('token')
 # 获取用户已加入聊天的信息
-def api_user_joinchat():
-    # 获取字段
-    try :
-        requestbody: dict = {key: str(value) for key, value in json.loads(request.data).items()}
-    except:
-        return apireturn(400,msg_type.UP+'error body',None)
-    token = requestbody.get('token')
+def api_user_joinchat(token):
+    # 检查字段
     if not token:
         return apireturn(400,msg_type.MF+'token',None)
     
@@ -528,14 +524,10 @@ def api_user_joinchat():
     return apireturn(200,msg_type.SC,joinchat)
 @app.route('/api/user/refreshtoken',methods=['POST'], endpoint='api_user_refreshtoken')
 @apilog
+@getbody('token')
 # 刷新令牌
-def api_user_refreshtoken():
-    # 获取字段
-    try :
-        requestbody: dict = {key: str(value) for key, value in json.loads(request.data).items()}
-    except:
-        return apireturn(400,msg_type.UP+'error body',None)
-    token = requestbody.get('token')
+def api_user_refreshtoken(token):
+    # 检查字段
     if not token:
         return apireturn(400,msg_type.MF+'token',None)
     
@@ -557,17 +549,12 @@ def api_user_refreshtoken():
     return apireturn(200,msg_type.SC,{'token':new_token})
 @app.route('/api/user/otp/generated',methods=['POST'], endpoint='api_user_otp_generated')
 @apilog
+@getbody('token','img')
 # 生成OTP密钥
-def api_user_otp_generated():
-    # 获取字段
-    try :
-        requestbody: dict = {key: str(value) for key, value in json.loads(request.data).items()}
-    except:
-        return apireturn(400,msg_type.UP+'error body',None)
-    token = requestbody.get('token')
+def api_user_otp_generated(token,img):
+    # 检查字段
     if not token:
         return apireturn(400,msg_type.MF+'token',None)
-    img = requestbody.get('img')
     
     # 检查token
     if not Verify_token(token) :
@@ -619,17 +606,12 @@ def api_user_otp_generated():
     return resp
 @app.route('/api/user/otp/verify',methods=['POST'], endpoint='api_user_otp_verify')
 @apilog
+@getbody('token','otpcode')
 # 验证OTP密钥
-def api_user_otp_verify():
-    # 获取字段
-    try :
-        requestbody: dict = {key: str(value) for key, value in json.loads(request.data).items()}
-    except:
-        return apireturn(400,msg_type.UP+'error body',None)
-    token = requestbody.get('token')
+def api_user_otp_verify(token,otpcode):
+    # 检查字段
     if not token:
         return apireturn(400,msg_type.MF+'token',None)
-    otpcode = requestbody.get('otpcode')
     if not token:
         return apireturn(400,msg_type.MF+'otpcode',None)
     
@@ -659,17 +641,12 @@ def api_user_otp_verify():
     return apireturn(200,msg_type.SC,None)
 @app.route('/api/user/otp/clear',methods=['POST'], endpoint='api_user_otp_clear')
 @apilog
+@getbody('otpcode','token')
 # 清除OTP密钥
-def api_user_otp_clear():
-    # 获取字段
-    try :
-        requestbody: dict = {key: str(value) for key, value in json.loads(request.data).items()}
-    except:
-        return apireturn(400,msg_type.UP+'error body',None)
-    otpcode = requestbody.get('otpcode')
+def api_user_otp_clear(otpcode,token):
+    # 检查字段
     if not otpcode:
         return apireturn(400,msg_type.MF+'otpcode',None)
-    token = requestbody.get('token')
     if not token:
         return apireturn(400,msg_type.MF+'token',None)
     
@@ -699,17 +676,12 @@ def api_user_otp_clear():
 # 好友类接口
 @app.route('/api/friend/add',methods=['POST'], endpoint='api_friend_add')
 @apilog
+@getbody('user','token')
 # 申请添加好友
-def api_friend_add():
-    # 获取字段
-    try :
-        requestbody: dict = {key: str(value) for key, value in json.loads(request.data).items()}
-    except:
-        return apireturn(400,msg_type.UP+'error body',None)
-    user = requestbody.get('user')
+def api_friend_add(user,token):
+    # 检查字段
     if not user:
         return apireturn(400,msg_type.MF+'user',None)
-    token = requestbody.get('token')
     if not token:
         return apireturn(400,msg_type.MF+'token',None)
     
@@ -744,17 +716,12 @@ def api_friend_add():
 
 @app.route('/api/friend/agree',methods=['POST'], endpoint='api_friend_agree')
 @apilog
+@getbody('user','token')
 # 同意添加好友
-def api_friend_agree():
-    # 获取字段
-    try :
-        requestbody: dict = {key: str(value) for key, value in json.loads(request.data).items()}
-    except:
-        return apireturn(400,msg_type.UP+'error body',None)
-    user = requestbody.get('user')
+def api_friend_agree(user,token):
+    # 检查字段
     if not user:
         return apireturn(400,msg_type.MF+'user',None)
-    token = requestbody.get('token')
     if not token:
         return apireturn(400,msg_type.MF+'token',None)
     
@@ -799,14 +766,10 @@ def api_friend_agree():
 
 @app.route('/api/friend/blacklist',methods=['POST'], endpoint='api_friend_blacklist')
 @apilog
+@getbody('token')
 # 好友黑名单查看
-def api_friend_blacklist():
-    # 获取字段
-    try :
-        requestbody: dict = {key: str(value) for key, value in json.loads(request.data).items()}
-    except:
-        return apireturn(400,msg_type.UP+'error body',None)
-    token = requestbody.get('token')
+def api_friend_blacklist(token):
+    # 检查字段
     if not token:
         return apireturn(400,msg_type.MF+'token',None)
     
@@ -823,17 +786,12 @@ def api_friend_blacklist():
 
 @app.route('/api/friend/blacklist/add',methods=['POST'], endpoint='api_friend_blacklist_add')
 @apilog
+@getbody('user','token')
 # 好友黑名单添加
-def api_friend_blacklist_add():
-    # 获取字段
-    try :
-        requestbody: dict = {key: str(value) for key, value in json.loads(request.data).items()}
-    except:
-        return apireturn(400,msg_type.UP+'error body',None)
-    user = requestbody.get('user')
+def api_friend_blacklist_add(user,token):
+    # 检查字段
     if not user:
         return apireturn(400,msg_type.MF+'user',None)
-    token = requestbody.get('token')
     if not token:
         return apireturn(400,msg_type.MF+'token',None)
     
@@ -860,17 +818,12 @@ def api_friend_blacklist_add():
 
 @app.route('/api/friend/blacklist/del',methods=['POST'], endpoint='api_friend_blacklist_del')
 @apilog
+@getbody('user','token')
 # 好友黑名单删除
-def api_friend_blacklist_del():
-    # 获取字段
-    try :
-        requestbody: dict = {key: str(value) for key, value in json.loads(request.data).items()}
-    except:
-        return apireturn(400,msg_type.UP+'error body',None)
-    user = requestbody.get('user')
+def api_friend_blacklist_del(user,token):
+    # 检查字段
     if not user:
         return apireturn(400,msg_type.MF+'user',None)
-    token = requestbody.get('token')
     if not token:
         return apireturn(400,msg_type.MF+'token',None)
     
@@ -898,23 +851,17 @@ def api_friend_blacklist_del():
 # 聊天类
 @app.route('/api/chat/add',methods=['POST'], endpoint='api_chat_add')
 @apilog
+@getbody('name','password','token','friend')
 # 添加聊天
-def api_chat_add():
-    # 获取字段
-    try :
-        requestbody: dict = {key: str(value) for key, value in json.loads(request.data).items()}
-    except:
-        return apireturn(400,msg_type.UP+'error body',None)
-    name = requestbody.get('name')
+def api_chat_add(name,password,token,friend):
+    # 检查字段
     if not name:
         return apireturn(400,msg_type.MF+'name',None)
-    password = requestbody.get('password')
-    token = requestbody.get('token')
     if not token:
         return apireturn(400,msg_type.MF+'token',None)
-    friend = requestbody.get('friend')
     if not friend:
         return apireturn(400,msg_type.MF+'friend',None)
+    
     try:
         friend = json.loads(friend)
         if not isinstance(friend,list):
@@ -980,14 +927,10 @@ def api_chat_add():
     return apireturn(200,msg_type.SC,{'chatid':newchatid})
 @app.route('/api/chat/<int:chatid>/info',methods=['POST'], endpoint='api_chat_info')
 @apilog
+@getbody('token')
 # 获取聊天信息
-def api_chat_info(chatid):
-    # 获取字段
-    try :
-        requestbody: dict = {key: str(value) for key, value in json.loads(request.data).items()}
-    except:
-        return apireturn(400,msg_type.UP+'error body',None)
-    token = requestbody.get('token')
+def api_chat_info(chatid,token):
+    # 检查字段
     if not token:
         return apireturn(400,msg_type.MF+'token',None)
     
@@ -1009,18 +952,12 @@ def api_chat_info(chatid):
 
 @app.route('/api/chat/join',methods=['POST'], endpoint='api_chat_join')
 @apilog
+@getbody('password','chatid','token')
 # 加入聊天
-def api_chat_join():
-    # 获取字段
-    try :
-        requestbody: dict = {key: str(value) for key, value in json.loads(request.data).items()}
-    except:
-        return apireturn(400,msg_type.UP+'error body',None)
-    password = requestbody.get('password')
-    chatid = sha256text(requestbody.get('chatid'))
+def api_chat_join(password,chatid,token):
+    # 检查字段
     if not chatid:
         return apireturn(400,msg_type.MF+'chatid',None)
-    token = requestbody.get('token')
     if not token:
         return apireturn(400,msg_type.MF+'token',None)
     
@@ -1066,19 +1003,15 @@ def api_chat_join():
     return apireturn(200,msg_type.SC,None)
 @app.route('/api/chat/<int:chatid>/user/list',methods=['POST'], endpoint='api_chat_user_list')
 @apilog
+@getbody('token')
 # 用户列表
-def api_chat_user_list(chatid):
+def api_chat_user_list(chatid,token):
     # 检查聊天编号
     chat = Chat.query.filter_by(id=str(chatid)).first()
     if not chat:
         return apireturn(404,msg_type.UC,None)
     
-    # 获取字段
-    try :
-        requestbody: dict = {key: str(value) for key, value in json.loads(request.data).items()}
-    except:
-        return apireturn(400,msg_type.UP+'error body',None)
-    token = requestbody.get('token')
+    # 检查字段
     if not token:
         return apireturn(400,msg_type.MF+'token',None)
     
@@ -1100,22 +1033,17 @@ def api_chat_user_list(chatid):
 
 @app.route('/api/chat/<string:chatid>/chat/send',methods=['POST'], endpoint='api_chat_chat_send')
 @apilog
+@getbody('token','type')
 # 发送聊天信息
-def api_chat_chat_send(chatid):
+def api_chat_chat_send(chatid,token,type):
     # 检查聊天编号
     chat = Chat.query.filter_by(id=chatid).first()
     if not chat:
         return apireturn(404,msg_type.UC,None)
     
-    # 获取字段
-    try :
-        requestbody: dict = dict(request.form)
-    except Exception as e:
-        return apireturn(400,msg_type.UP+'error body '+e,None)
-    token = requestbody.get('token')
+    # 检查字段
     if not token:
         return apireturn(400,msg_type.MF+'token',None)
-    type = str(requestbody.get('type','0'))
     
     # 检查token
     if not Verify_token(token):
@@ -1152,7 +1080,7 @@ def api_chat_chat_send(chatid):
     return apireturn(200,msg_type.SC,None)
 
 def chat_send_0(request,token,chatid):
-    # 获取字段
+    # 检查字段
     try :
         requestbody: dict = {key: str(value) for key, value in json.loads(request.data).items()}
     except:
@@ -1271,23 +1199,17 @@ def chat_send_2(request,token,chatid):
 
 @app.route('/api/chat/<int:chatid>/chat/get',methods=['POST'], endpoint='api_chat_chat_get')
 @apilog
+@getbody('token','starttime','overtime')
 # 获取聊天信息
-def api_chat_chat_get(chatid):
+def api_chat_chat_get(chatid,token,starttime,overtime):
     # 检查聊天编号
     chat = Chat.query.filter_by(id=chatid).first()
     if not chat:
         return apireturn(404,msg_type.UC,None)
     
-    # 获取字段
-    try :
-        requestbody: dict = {key: str(value) for key, value in json.loads(request.data).items()}
-    except:
-        return apireturn(400,msg_type.UP+'error body',None)
-    token = requestbody.get('token')
+    # 检查字段
     if not token:
         return apireturn(400,msg_type.MF + 'token',None)
-    starttime = requestbody.get('starttime',None)
-    overtime = requestbody.get('overtime',None)
     
     # 检查token
     if not Verify_token(token):
@@ -1320,20 +1242,17 @@ def api_chat_chat_get(chatid):
 
 @app.route('/api/chat/<int:chatid>/chat/getfile',methods=['POST'], endpoint='api_chat_file_get')
 @apilog
+@getbody('token','fileid')
 # 获取文件
-def api_chat_file_get(chatid):
+def api_chat_file_get(chatid,token,fileid):
     # 检查聊天编号
     chat = Chat.query.filter_by(id=str(chatid)).first()
     if not chat:
         return apireturn(404,msg_type.UC,None)
     
-    # 获取字段
-    try :
-        requestbody: dict = {key: str(value) for key, value in json.loads(request.data).items()}
-    except:
-        return apireturn(400,msg_type.UP+'error body',None)
-    token = requestbody.get('token')
-    fileid = requestbody.get('fileid',0)
+    # 检查字段
+    if not token:
+        return apireturn(400,msg_type.MF + 'token',None)
     if not fileid:
         return apireturn(400,msg_type.MF + 'fileid',None)
     
@@ -1361,22 +1280,17 @@ def api_chat_file_get(chatid):
 
 @app.route('/api/chat/<int:chatid>/chat/retract',methods=['POST'], endpoint='api_chat_chat_retract')
 @apilog
-# 撤销自己的聊天信息
-def api_chat_chat_retract(chatid):
+@getbody('token','msgid')
+# 撤销聊天信息
+def api_chat_chat_retract(chatid,token,msgid):
     # 检查聊天编号
     chat = Chat.query.filter_by(id=chatid).first()
     if not chat:
         return apireturn(404,msg_type.UC,None)
     
-    # 获取字段
-    try :
-        requestbody: dict = {key: str(value) for key, value in json.loads(request.data).items()}
-    except:
-        return apireturn(400,msg_type.UP+'error body',None)
-    token = requestbody.get('token')
+    # 检查字段
     if not token:
         return apireturn(400,msg_type.MF + 'token',None)
-    msgid = requestbody.get('msgid',0)
     if not msgid:
         return apireturn(400,msg_type.MF + 'msgid',None)
     
@@ -1429,8 +1343,9 @@ def api_chat_chat_retract(chatid):
 
 @app.route('/api/chat/<int:chatid>/level/set',methods=['POST'], endpoint='api_chat_level_set')
 @apilog
+@getbody('token','user','level')
 # 设置用户等级
-def api_chat_level_set(chatid):
+def api_chat_level_set(chatid,token,user,level):
     # 检查聊天编号
     chat = Chat.query.filter_by(id=chatid).first()
     if not chat:
@@ -1440,18 +1355,11 @@ def api_chat_level_set(chatid):
     if chat.type != chat_type.group:
         return apireturn(404,msg_type.UP+'need a group',None)
     
-    # 获取字段
-    try :
-        requestbody: dict = {key: str(value) for key, value in json.loads(request.data).items()}
-    except:
-        return apireturn(400,msg_type.UP+'error body',None)
-    token = requestbody.get('token')
+    # 检查字段
     if not token:
         return apireturn(400,msg_type.MF + 'token',None)
-    user = requestbody.get('user',0)
     if not user:
         return apireturn(400,msg_type.MF + 'user',None)
-    level = requestbody.get('level',0)
     if not level:
         return apireturn(400,msg_type.MF + 'level',None)
 
@@ -1508,8 +1416,9 @@ def api_chat_level_set(chatid):
     return apireturn(200,msg_type.SC,None)
 @app.route('/api/chat/<int:chatid>/anncmnt',methods=['POST'], endpoint='api_chat_anncmnt')
 @apilog
+@getbody('token')
 # 查看公告
-def api_chat_anncmnt(chatid):
+def api_chat_anncmnt(chatid,token):
     # 检查聊天编号
     chat = Chat.query.filter_by(id=chatid).first()
     if not chat:
@@ -1519,12 +1428,7 @@ def api_chat_anncmnt(chatid):
     if chat.type != chat_type.group:
         return apireturn(404,msg_type.UP+'need a group',None)
     
-    # 获取字段
-    try :
-        requestbody: dict = {key: str(value) for key, value in json.loads(request.data).items()}
-    except:
-        return apireturn(400,msg_type.UP+'error body',None)
-    token = requestbody.get('token')
+    # 检查字段
     if not token:
         return apireturn(400,msg_type.MF + 'token',None)
     
@@ -1549,8 +1453,9 @@ def api_chat_anncmnt(chatid):
 
 @app.route('/api/chat/<int:chatid>/anncmnt/add',methods=['POST'], endpoint='api_chat_anncmnt_add')
 @apilog
+@getbody('token','title','content')
 # 增加公告
-def api_chat_anncmnt_add(chatid):
+def api_chat_anncmnt_add(chatid,token,title,content):
     # 检查聊天编号
     chat = Chat.query.filter_by(id=str(chatid)).first()
     if not chat:
@@ -1560,18 +1465,11 @@ def api_chat_anncmnt_add(chatid):
     if chat.type != chat_type.group:
         return apireturn(404,msg_type.UP+'need a group',None)
     
-    # 获取字段
-    try :
-        requestbody: dict = {key: str(value) for key, value in json.loads(request.data).items()}
-    except:
-        return apireturn(400,msg_type.UP+'error body',None)
-    token = requestbody.get('token')
+    # 检查字段
     if not token:
         return apireturn(400,msg_type.MF + 'token',None)
-    title = requestbody.get('title',0)
     if not title:
         return apireturn(400,msg_type.MF + 'title',None)
-    content = requestbody.get('content',0)
     if not content:
         return apireturn(400,msg_type.MF + 'content',None)
     
@@ -1610,8 +1508,9 @@ def api_chat_anncmnt_add(chatid):
 
 @app.route('/api/chat/<int:chatid>/anncmnt/modify',methods=['POST'], endpoint='api_chat_anncmnt_modify')
 @apilog
+@getbody('token','mid','title','content')
 # 更改公告
-def api_chat_anncmnt_modify(chatid):
+def api_chat_anncmnt_modify(chatid,token,mid,title,content):
     # 检查聊天编号
     chat = Chat.query.filter_by(id=str(chatid)).first()
     if not chat:
@@ -1621,21 +1520,13 @@ def api_chat_anncmnt_modify(chatid):
     if chat.type != chat_type.group:
         return apireturn(404,msg_type.UP+'need a group',None)
     
-    # 获取字段
-    try :
-        requestbody: dict = {key: str(value) for key, value in json.loads(request.data).items()}
-    except:
-        return apireturn(400,msg_type.UP+'error body',None)
-    token = requestbody.get('token')
+    # 检查字段
     if not token:
         return apireturn(400,msg_type.MF + 'token',None)
-    mid = requestbody.get('id',0)
     if not mid:
         return apireturn(400,msg_type.MF + 'id',None)
-    title = requestbody.get('title',0)
     if not title:
         return apireturn(400,msg_type.MF + 'title',None)
-    content = requestbody.get('content',0)
     if not content:
         return apireturn(400,msg_type.MF + 'content',None)
     
@@ -1656,7 +1547,7 @@ def api_chat_anncmnt_modify(chatid):
     # 检查是否有权限
     if not userlevel(chatid, user.id, 2):
         return apireturn(403,msg_type.IP,None)
-    
+
     # 检查编号
     flag = False
     if 'anncmnt' in chat.setting:
@@ -1666,8 +1557,7 @@ def api_chat_anncmnt_modify(chatid):
                 
                 # 检查content
                 import base64
-                try:
-                    content_decode = base64.b64encode(content.encode('utf-8'))
+                try: base64.b64encode(content.encode('utf-8'))
                 except:
                     return apireturn(403,msg_type.EF + 'content',None)
                 
@@ -1683,8 +1573,9 @@ def api_chat_anncmnt_modify(chatid):
 
 @app.route('/api/chat/<int:chatid>/anncmnt/del',methods=['POST'], endpoint='api_chat_anncmnt_del')
 @apilog
+@getbody('token','mid')
 # 删除公告
-def api_chat_anncmnt_del(chatid):
+def api_chat_anncmnt_del(chatid,token,mid):
     # 检查聊天编号
     chat = Chat.query.filter_by(id=str(chatid)).first()
     if not chat:
@@ -1694,15 +1585,9 @@ def api_chat_anncmnt_del(chatid):
     if chat.type != chat_type.group:
         return apireturn(404,msg_type.UP+'need a group',None)
     
-    # 获取字段
-    try :
-        requestbody: dict = {key: str(value) for key, value in json.loads(request.data).items()}
-    except:
-        return apireturn(400,msg_type.UP+'error body',None)
-    token = requestbody.get('token')
+    # 检查字段
     if not token:
         return apireturn(400,msg_type.MF + 'token',None)
-    mid = requestbody.get('id',0)
     if not mid:
         return apireturn(400,msg_type.MF + 'id',None)
     
@@ -1740,4 +1625,9 @@ def api_chat_anncmnt_del(chatid):
 
 if __name__ == '__main__':
     initialize()
-    serve(app, host=config['SERVER_HOST'], port=config['SERVER_PORT'])
+    if config['ENVIRONMENT'] == 'P':
+        serve(app, host=config['SERVER_HOST'], port=config['SERVER_PORT'])
+    elif config['ENVIRONMENT'] == 'D':
+        app.run(host=config['SERVER_HOST'], port=config['SERVER_PORT'], debug=True)
+    else:
+        print(f'Unknown environment: {config['ENVIRONMENT']} environment')
