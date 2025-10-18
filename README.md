@@ -15,4 +15,4 @@
 
 ## 使用
 
-前往[releases](https://github.com/wzyaeu/Quile-chat/releases)页面下载最新版或者`pyinstaller -F app.py`手动编译。
+前往[releases](https://github.com/wzyaeu/Quile-chat/releases)页面下载最新版或者自己手动编译。

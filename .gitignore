@@ -4,8 +4,9 @@ dist/
 exam/
 data.db
 app.spec
-chat\.json
-config\.json
-user\.json
+chat.json
+config.json
+user.json
 config
 log/
+__pycache__
