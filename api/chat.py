@@ -1,7 +1,7 @@
-from definition import apilog, apireturn, getbody, msg_type, timestamp, json, Verify_token, chat_type, User, Chat, random, db, os, hashlib, userlevel, sha256text, config, send_from_directory, leveltonumber, Blueprint
+from flask import Blueprint, send_from_directory
+from main import *
 
 app = Blueprint('chat', __name__)
-
 
 # 聊天类
 @app.route('/api/chat/add',methods=['POST'], endpoint='api_chat_add')

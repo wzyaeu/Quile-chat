@@ -1,6 +1,6 @@
-from flask import Blueprint
-from definition import db, apireturn, apilog, getbody, msg_type, Verify_token, User, timestamp, config, db, Chat, time, Token, pyotp, make_response
-
+import pyotp
+from flask import Blueprint, make_response
+from main import *
 
 app = Blueprint('user', __name__)
 

@@ -1,5 +1,5 @@
 from flask import Blueprint
-from definition import apilog, getbody, apireturn, msg_type, Verify_token, User, timestamp, config, db, Chat, random, addchat, chat_type
+from main import *
 
 app = Blueprint('friend', __name__)
 
@@ -30,16 +30,16 @@ def api_friend_add(user,token):
         return apireturn(401,msg_type.EF+'token',None)
     
     # 检查黑名单
-    if current_user.id in target_user.blacklist:
+    if current_user.user in target_user.blacklist:
         return apireturn(401,msg_type.UP+'in the blacklist',None)
     
     # 检查申请getbody
-    if current_user.id in target_user.friend_application:
-        if timestamp() - target_user.friend_application[current_user.id]['time'] < config['FRIEND_REQUST_TIME']:
+    if current_user.user in target_user.friend_application:
+        if timestamp() - target_user.friend_application[current_user.user]['time'] < config['FRIEND_REQUST_TIME']:
             return apireturn(401,msg_type.UP+'has already applied',None)
     
     # 发送申请
-    target_user.friend_application[current_user.id] = {'user': current_user.id, 'time': timestamp()}
+    target_user.friend_application[current_user.user] = {'user': current_user.user, 'time': timestamp()}
     db.session.commit()
 
     return apireturn(200,msg_type.SC,None)

@@ -1,5 +1,5 @@
 from flask import Blueprint
-from definition import apilog, apireturn, msg_type, config
+from main import *
 
 app = Blueprint('server', __name__)
 

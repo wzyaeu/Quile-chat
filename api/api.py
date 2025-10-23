@@ -1,4 +1,5 @@
-from definition import apilog, apireturn, msg_type, time, Blueprint, VERSION
+from flask import Blueprint
+from main import *
 
 app = Blueprint('api', __name__)
 
