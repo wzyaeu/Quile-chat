@@ -2,8 +2,6 @@ from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 import os
 
-VERSION = 'v0.1.0'
-
 class chat_type():
     group = 'group'
     friend = 'friend'

@@ -16,7 +16,7 @@ import hashlib
 import random
 import os
 
-VERSION = 'v0.1.0'
+VERSION = 'v0.1.1'
 
 def chatrules(chatid,rulename)-> dict:
     """获取聊天规则"""
@@ -210,7 +210,6 @@ def addchat(name,password,ownertoken,id,chattype):
     db.session.commit()
 
 def display(**kwargs):
-    print('pyfiglet')
     os.system('cls')
     import pyfiglet
     print(CYAN+pyfiglet.figlet_format("Q u i l e  C h a t", font="standard"))
@@ -359,7 +358,6 @@ def main():
 
     app.config['MAX_CONTENT_LENGTH'] = (1024 ^ config['MAX_CONTENT_LENGTH']['unit']) * config['MAX_CONTENT_LENGTH']['quantity']
 
-    api_list = ['api','server','user','friend','chat']
     import api.api as api
     import api.server as server
     import api.user as user
@@ -372,12 +370,11 @@ def main():
     app.register_blueprint(friend.app)
     app.register_blueprint(chat.app)
 
-    print('app.config')
     server_thread = threading.Thread(target=serve, kwargs={'app':app,'host':config['SERVER_HOST'],'port':config['SERVER_PORT']})
     server_thread.daemon = True
     server_thread.start()
 
-    display(api_list=api_list)
+    display()
 
 if __name__ == '__main__':
     main()
