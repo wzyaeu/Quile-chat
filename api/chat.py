@@ -188,9 +188,9 @@ def api_chat_user_list(chatid,token):
 
 @app.route('/api/chat/<string:chatid>/chat/send',methods=['POST'], endpoint='api_chat_chat_send')
 @apilog
-@getbody('token','type')
+@getbody('token','type','message','citation')
 # 发送聊天信息
-def api_chat_chat_send(chatid,token,type):
+def api_chat_chat_send(chatid,token,type,**kwargs):
     # 检查聊天编号
     chat = Chat.query.filter_by(id=chatid).first()
     if not chat:
@@ -220,27 +220,18 @@ def api_chat_chat_send(chatid,token,type):
     
     # 普通消息
     if type == '0':
-        chat_send_0(token,chatid)
+        return chat_send_0(token,chatid,**kwargs)
     # 引用消息
     elif type == '1':
-        chat_send_1(token,chatid)
+        return chat_send_1(token,chatid,**kwargs)
     # 文件消息
     elif type == '2':
-        chat_send_2(token,chatid)
+        return chat_send_2(token,chatid,file=request.files.get('file'))
     else :
         return apireturn(400,msg_type.EF+'type',None)
 
-    db.session.commit()
-
-    return apireturn(200,msg_type.SC,None)
-
-def chat_send_0(request,token,chatid):
+def chat_send_0(token,chatid,message):
     # 检查字段
-    try :
-        requestbody: dict = {key: str(value) for key, value in json.loads(request.data).items()}
-    except:
-        return apireturn(400,msg_type.UP+'error body',None)
-    message = requestbody.get('message')
     if not message:
         return apireturn(400,msg_type.MF+'message',None)
     
@@ -258,105 +249,103 @@ def chat_send_0(request,token,chatid):
     chat.chat.append({'type':'0','sender':user.id,'time':timestamp(),'content':{'text':message},'id':id() })
     db.session.commit()
 
-def chat_send_1(request,token,chatid):
+    return apireturn(200,msg_type.SC,None)
+
+def chat_send_1(token,chatid,message,citation):
+    if not citation:
+        return apireturn(400,msg_type.MF+'citation',None)
+    if not message:
+        return apireturn(400,msg_type.MF+'message',None)
     
-        # 获取字段
-        try :
-            requestbody: dict = {key: str(value) for key, value in json.loads(request.data).items()}
-        except Exception as e:
-            return apireturn(400,msg_type.UP+'error body',None)
-        citation = requestbody.get('citation')
-        if not citation:
-            return apireturn(400,msg_type.MF+'citation',None)
-        message = requestbody.get('message')
-        if not message:
-            return apireturn(400,msg_type.MF+'message',None)
-        
-        # 获取聊天信息
-        chat = Chat.query.filter_by(id=str(chatid)).first()
-        if not chat:
-            return apireturn(404,msg_type.UC,None)
-        
-        # 获取用户信息
-        user = User.query.filter_by(token=token).first()
-        if not user:
-            return apireturn(401,msg_type.EF + 'token',None)
-        
-        # 检查引用是否正确
-        flag = False
-        for msg in chat.chat:
-            if msg['id'] == citation:
-                if msg['type'] == '-1':
-                    return apireturn(400,msg_type.UP+'Unquotable message',None)
-                flag = True
-                break
-        if not flag:
-            return apireturn(400,msg_type.EF+'citation',None)
-        
-        # 添加消息
-        chat.chat.append({'type':'1','sender':user.id,'time':timestamp(),'content':{'text':message,'citation':citation},'id':id() })
-        db.session.commit()
+    # 获取聊天信息
+    chat = Chat.query.filter_by(id=str(chatid)).first()
+    if not chat:
+        return apireturn(404,msg_type.UC,None)
+    
+    # 获取用户信息
+    user = User.query.filter_by(token=token).first()
+    if not user:
+        return apireturn(401,msg_type.EF + 'token',None)
+    
+    # 检查引用是否正确
+    flag = False
+    for msg in chat.chat:
+        if msg['id'] == citation:
+            if msg['type'] == '-1':
+                return apireturn(400,msg_type.UP+'Unquotable message',None)
+            flag = True
+            break
+    if not flag:
+        return apireturn(400,msg_type.EF+'citation',None)
+    
+    # 添加消息
+    chat.chat.append({'type':'1','sender':user.id,'time':timestamp(),'content':{'text':message,'citation':citation},'id':id() })
+    db.session.commit()
 
-def chat_send_2(request,token,chatid):
+    return apireturn(200,msg_type.SC,None)
+
+def chat_send_2(file,token,chatid):
     # 获取上传的文件对象
-        uploaded_file = request.files.get('file')
-        if not uploaded_file:
-            return apireturn(400, msg_type.MF + 'file', None)
+    if not file:
+        return apireturn(400, msg_type.MF + 'file', None)
+    
+    def save_uploaded_file(uploaded_file , chat_id):
+        # 生成保存目录
+        base_storage_dir = 'files'
+        os.makedirs(base_storage_dir, exist_ok=True)
+        chat_storage_dir = os.path.join(base_storage_dir, chat_id, '/chat/')
+        os.makedirs(chat_storage_dir, exist_ok=True)
+
+        # 保存文件
+        sha256_hash = hashlib.sha256()
+
+        while True:
+            chunk = uploaded_file.read(65536)
+            if not chunk:
+                break
+            # 更新哈希
+            sha256_hash.update(chunk)
         
-        def save_uploaded_file(uploaded_file , chat_id):
-            # 生成保存目录
-            base_storage_dir = 'files'
-            os.makedirs(base_storage_dir, exist_ok=True)
-            chat_storage_dir = os.path.join(base_storage_dir, chat_id, '/chat/')
-            os.makedirs(chat_storage_dir, exist_ok=True)
+        uploaded_file.seek(0)
+        hash_filename = sha256_hash.hexdigest()
 
-            # 保存文件
-            sha256_hash = hashlib.sha256()
-
+        with open(os.path.join(chat_storage_dir, hash_filename), 'wb') as output_file:
             while True:
                 chunk = uploaded_file.read(65536)
                 if not chunk:
                     break
-                # 更新哈希
-                sha256_hash.update(chunk)
-            
-            uploaded_file.seek(0)
-            hash_filename = sha256_hash.hexdigest()
+                # 写入文件
+                output_file.write(chunk)
 
-            with open(os.path.join(chat_storage_dir, hash_filename), 'wb') as output_file:
-                while True:
-                    chunk = uploaded_file.read(65536)
-                    if not chunk:
-                        break
-                    # 写入文件
-                    output_file.write(chunk)
+        return {
+            'fileid': hash_filename,          
+            'name': uploaded_file.filename,
+            'text': f'文件 {uploaded_file.filename}'
+        }
 
-            return {
-                'fileid': hash_filename,          
-                'name': uploaded_file.filename
-            }
+    filedata = save_uploaded_file(file, chatid)
 
-        filedata = save_uploaded_file(uploaded_file, chatid)
+    # 获取聊天信息
+    chat = Chat.query.filter_by(id=str(chatid)).first()
+    if not chat:
+        return apireturn(404,msg_type.UC,None)
+    
+    # 获取用户信息
+    user = User.query.filter_by(token=token).first()
+    if not user:
+        return apireturn(401,msg_type.EF + 'token',None)
+    
+    # 添加消息
+    chat.chat.append({'type':'2','sender':user.id,'time':timestamp(),'content':filedata,'id':sha256text(str(int(timestamp()))+str(random.randint(0,9999))) })
+    db.session.commit()
 
-        # 获取聊天信息
-        chat = Chat.query.filter_by(id=str(chatid)).first()
-        if not chat:
-            return apireturn(404,msg_type.UC,None)
-        
-        # 获取用户信息
-        user = User.query.filter_by(token=token).first()
-        if not user:
-            return apireturn(401,msg_type.EF + 'token',None)
-        
-        # 添加消息
-        chat.chat.append({'type':'2','sender':user.id,'time':timestamp(),'content':filedata,'id':sha256text(str(int(timestamp()))+str(random.randint(0,9999))) })
-        db.session.commit()
+    return apireturn(200,msg_type.SC,None)
 
 @app.route('/api/chat/<int:chatid>/chat/get',methods=['POST'], endpoint='api_chat_chat_get')
 @apilog
-@getbody('token','starttime','overtime')
+@getbody('token','starttime','overtime','count','removal_count')
 # 获取聊天信息
-def api_chat_chat_get(chatid,token,starttime,overtime):
+def api_chat_chat_get(chatid,token,starttime,overtime,count,removal_count):
     # 检查聊天编号
     chat = Chat.query.filter_by(id=chatid).first()
     if not chat:
@@ -380,20 +369,29 @@ def api_chat_chat_get(chatid,token,starttime,overtime):
     if user.id not in chatusers:
         return apireturn(403,msg_type.IP,None)
     
-    # 用户最开始进入聊天时间
-    jointime = None
-    for chatuser in chat.user:
-        if chatuser['user'] == user.id:
-            jointime = chatuser['jointime']
-            break
-    
-    # 遍历聊天信息
-    chatlist = []
-    for msg in chat.chat:
-        if (starttime is None or msg['time'] >= starttime) and (overtime is None or msg['time'] <= overtime) and (jointime is None or msg['time'] >= jointime):
-            chatlist.append(msg)
+    if count:
+        if type(count) == int:
+            if removal_count:
+                if type(removal_count) == int:
+                    chatlist = chat.chat[-count:][:-removal_count]
+                else: return apireturn(401,msg_type.EF + 'removal_count, need int',None)
+            chatlist = chat.chat[-count:]
+        else: return apireturn(401,msg_type.EF + 'count, need int',None)
+    else:
+        # 用户最开始进入聊天时间
+        jointime = None
+        for chatuser in chat.user:
+            if chatuser['user'] == user.id:
+                jointime = chatuser['jointime']
+                break
+        
+        # 遍历聊天信息
+        chatlist = []
+        for msg in chat.chat:
+            if (starttime is None or msg['time'] >= starttime) and (overtime is None or msg['time'] <= overtime) and (jointime is None or msg['time'] >= jointime):
+                chatlist.append(msg)
 
-    return apireturn(200,msg_type.SC,chatlist)
+    return apireturn(200,msg_type.SC,{'chatlist':chatlist})
 
 @app.route('/api/chat/<int:chatid>/chat/getfile',methods=['POST'], endpoint='api_chat_file_get')
 @apilog

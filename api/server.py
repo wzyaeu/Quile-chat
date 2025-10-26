@@ -8,9 +8,9 @@ app = Blueprint('server', __name__)
 @apilog
 # 服务器公告
 def api_serve_anncmnt():
-    return apireturn(200,msg_type.SC,{'anncmnt':config.get('anncmnt',None)})
+    return apireturn(200,msg_type.SC,{'anncmnt':config.get('ANNCMNT',None)})
 @app.route('/api/serve/name',methods=['POST','GET'], endpoint='api_serve_name')
 @apilog
 # 服务器公告
 def api_serve_name():
-    return apireturn(200,msg_type.SC,{'name':config.get('server',None)})
+    return apireturn(200,msg_type.SC,{'name':config.get('SERVER_NAME',None)})

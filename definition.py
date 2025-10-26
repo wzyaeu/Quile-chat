@@ -1,6 +1,7 @@
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 import os
+import json
 
 class chat_type():
     group = 'group'
@@ -41,3 +42,23 @@ class Chat(db.Model):
     chat = db.Column(db.JSON)
     user = db.Column(db.JSON)
     setting = db.Column(db.JSON)
+
+try:
+    with open('config.json','r') as configdata :
+        config = json.loads(configdata.read())
+except:
+    config = {
+            "SERVER_HOST": "127.0.0.1",
+            "SERVER_PORT": 5000,
+            "SERVER_NAME": "Quile Server",
+            "RESPONSE_LOG": True,
+            "TOKEN_EXPIRATION_TIME": 3600000,
+            "MESSAGE_RETRACT_TIME": 3600000,
+            "MAX_CONTENT_LENGTH": {
+                "unit": 3,
+                "quantity": 1
+            },
+            "FRIEND_REQUST_TIME": 3600000
+        }
+    with open('config.json','w') as configdata :
+        configdata.write(json.dumps(config))

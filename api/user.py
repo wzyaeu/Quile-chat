@@ -116,10 +116,10 @@ def api_user_info(user,token):
     
     # 检查token
     if not Verify_token(token) and info['user'] == user:
-        del info['joinchat']
-        del info['token']
-        del info['time']
-        del info['password']
+        info = {
+            'user': info['user'],
+            'name': info['name']
+        }
 
     return apireturn(200,msg_type.SC,info)
 @app.route('/api/user/joinchat',methods=['POST'], endpoint='api_user_joinchat')
@@ -152,7 +152,7 @@ def api_user_joinchat(token):
                 })
                 break
 
-    return apireturn(200,msg_type.SC,joinchat)
+    return apireturn(200,msg_type.SC,{'data':joinchat})
 @app.route('/api/user/refreshtoken',methods=['POST'], endpoint='api_user_refreshtoken')
 @apilog
 @getbody('token')

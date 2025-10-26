@@ -16,7 +16,7 @@ import hashlib
 import random
 import os
 
-VERSION = 'v0.1.1'
+VERSION = 'v0.1.2'
 
 def chatrules(chatid,rulename)-> dict:
     """获取聊天规则"""
@@ -231,6 +231,17 @@ def display(**kwargs):
                 print(BRIGHT+'head : over'+RESET_ALL)
                 print('信息：关闭程序')
                 print('用法：over')
+                # 暂不启用
+                # print(BRIGHT+'head : vers'+RESET_ALL)
+                # print('信息：版本操作')
+                # print('用法：vers <command>')
+                # print('command：可用now、check、update')
+                # print('<command> now：当前版本')
+                # print('<command> now 用法：vers now')
+                # print('<command> check：检查最新版本')
+                # print('<command> check 用法：vers check')
+                # print('<command> update：获取最新版本')
+                # print('<command> update 用法：vers update')
                 print(BRIGHT+'head : help'+RESET_ALL)
                 print('信息：帮助')
                 print('用法：help')
@@ -300,26 +311,6 @@ def main():
     DIM = Style.DIM
     BRIGHT = Style.BRIGHT
     init()
-
-    try:
-        with open('config.json','r') as configdata :
-            config = json.loads(configdata.read())
-    except:
-        config = {
-                "SERVER_HOST": "127.0.0.1",
-                "SERVER_PORT": 5000,
-                "SERVER_NAME": "Quile Server",
-                "RESPONSE_LOG": True,
-                "TOKEN_EXPIRATION_TIME": 3600000,
-                "MESSAGE_RETRACT_TIME": 3600000,
-                "MAX_CONTENT_LENGTH": {
-                    "unit": 3,
-                    "quantity": 1
-                },
-                "FRIEND_REQUST_TIME": 3600000
-            }
-        with open('config.json','w') as configdata :
-            configdata.write(json.dumps(config))
             
     # 创建log目录
     log_dir = "log"
